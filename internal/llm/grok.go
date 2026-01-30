@@ -128,6 +128,61 @@ func (p *GrokProvider) Analyze(ctx context.Context, req *types.AnalysisRequest) 
 	return &plan, nil
 }
 
+// AnalyzeDiff sends a diff analysis request to Grok and returns the analysis.
+func (p *GrokProvider) AnalyzeDiff(ctx context.Context, system, user string) (string, error) {
+	requestBody := grokRequest{
+		Model: p.model,
+		Messages: []grokMessage{
+			{Role: "system", Content: system},
+			{Role: "user", Content: user},
+		},
+		Temperature: 0.3,
+		MaxTokens:   2000,
+	}
+
+	bodyBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", &ProviderError{Provider: "grok", Message: "failed to marshal request", Err: err}
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", grokAPIURL, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", &ProviderError{Provider: "grok", Message: "failed to create request", Err: err}
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return "", &ProviderError{Provider: "grok", Message: "request failed", Err: err}
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", &ProviderError{Provider: "grok", Message: "failed to read response", Err: err}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", &ProviderError{
+			Provider: "grok",
+			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
+		}
+	}
+
+	var grokResp grokResponse
+	if err := json.Unmarshal(respBody, &grokResp); err != nil {
+		return "", &ProviderError{Provider: "grok", Message: "failed to parse response", Err: err}
+	}
+
+	if len(grokResp.Choices) == 0 {
+		return "", &ProviderError{Provider: "grok", Message: "empty response from API"}
+	}
+
+	return grokResp.Choices[0].Message.Content, nil
+}
+
 type grokRequest struct {
 	Model       string        `json:"model"`
 	Messages    []grokMessage `json:"messages"`

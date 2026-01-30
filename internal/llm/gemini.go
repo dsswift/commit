@@ -135,6 +135,69 @@ func (p *GeminiProvider) Analyze(ctx context.Context, req *types.AnalysisRequest
 	return &plan, nil
 }
 
+// AnalyzeDiff sends a diff analysis request to Gemini and returns the analysis.
+func (p *GeminiProvider) AnalyzeDiff(ctx context.Context, system, user string) (string, error) {
+	// Gemini uses a different format - combine system and user prompts
+	combinedPrompt := system + "\n\n---\n\n" + user
+
+	requestBody := geminiRequest{
+		Contents: []geminiContent{
+			{
+				Parts: []geminiPart{
+					{Text: combinedPrompt},
+				},
+			},
+		},
+		GenerationConfig: geminiGenerationConfig{
+			Temperature:     0.3,
+			MaxOutputTokens: 2000,
+		},
+	}
+
+	bodyBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", &ProviderError{Provider: "gemini", Message: "failed to marshal request", Err: err}
+	}
+
+	url := fmt.Sprintf(geminiAPIURL, p.model) + "?key=" + p.apiKey
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", &ProviderError{Provider: "gemini", Message: "failed to create request", Err: err}
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return "", &ProviderError{Provider: "gemini", Message: "request failed", Err: err}
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", &ProviderError{Provider: "gemini", Message: "failed to read response", Err: err}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", &ProviderError{
+			Provider: "gemini",
+			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
+		}
+	}
+
+	var geminiResp geminiResponse
+	if err := json.Unmarshal(respBody, &geminiResp); err != nil {
+		return "", &ProviderError{Provider: "gemini", Message: "failed to parse response", Err: err}
+	}
+
+	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
+		return "", &ProviderError{Provider: "gemini", Message: "empty response from API"}
+	}
+
+	return geminiResp.Candidates[0].Content.Parts[0].Text, nil
+}
+
 type geminiRequest struct {
 	Contents         []geminiContent        `json:"contents"`
 	GenerationConfig geminiGenerationConfig `json:"generationConfig,omitempty"`

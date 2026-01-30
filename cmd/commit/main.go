@@ -46,6 +46,11 @@ func run() int {
 		return 1
 	}
 
+	// Handle --diff flag
+	if flags.diffFile != "" {
+		return handleDiff(flags)
+	}
+
 	// Generate execution ID and start logging
 	executionID := logging.GenerateExecutionID()
 	logger, err := logging.NewExecutionLogger(executionID)
@@ -119,6 +124,9 @@ type flags struct {
 	force     bool
 	version   bool
 	upgrade   bool
+	diffFile  string
+	diffFrom  string
+	diffTo    string
 	provider  string
 }
 
@@ -133,6 +141,9 @@ func parseFlags() flags {
 	flag.BoolVar(&f.force, "force", false, "Force operation (for --reverse on pushed commits)")
 	flag.BoolVar(&f.version, "version", false, "Print version")
 	flag.BoolVar(&f.upgrade, "upgrade", false, "Upgrade to latest version")
+	flag.StringVar(&f.diffFile, "diff", "", "Analyze changes to a specific file")
+	flag.StringVar(&f.diffFrom, "from", "", "Start ref for diff analysis")
+	flag.StringVar(&f.diffTo, "to", "", "End ref for diff analysis")
 	flag.StringVar(&f.provider, "provider", "", "Override LLM provider")
 
 	flag.Parse()
@@ -459,6 +470,62 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 	result.Duration = time.Since(startTime)
 	result.CommitsCreated = executed
 	return result
+}
+
+func handleDiff(flags flags) int {
+	cwd, err := os.Getwd()
+	if err != nil {
+		printError("Failed to get current directory", err)
+		return 1
+	}
+
+	gitRoot, err := git.FindGitRoot(cwd)
+	if err != nil {
+		printError("Not a git repository", err)
+		return 1
+	}
+
+	// Load config
+	printStep("🔧", "Loading config...")
+	userConfig, err := config.LoadUserConfig()
+	if err != nil {
+		handleConfigError(err)
+		return 1
+	}
+
+	if flags.provider != "" {
+		userConfig.Provider = flags.provider
+	}
+	printSuccess(fmt.Sprintf("Provider: %s", userConfig.Provider))
+
+	// Create LLM provider
+	provider, err := llm.NewProvider(userConfig)
+	if err != nil {
+		printError("Failed to create LLM provider", err)
+		return 1
+	}
+
+	// Analyze the diff
+	printStep("📂", fmt.Sprintf("Analyzing: %s", flags.diffFile))
+
+	diffAnalyzer := analyzer.NewDiffAnalyzer(gitRoot)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	printProgress(fmt.Sprintf("Sending to %s...", provider.Model()))
+
+	analysis, err := diffAnalyzer.Analyze(ctx, flags.diffFile, flags.diffFrom, flags.diffTo, provider)
+	if err != nil {
+		printError("Analysis failed", err)
+		return 1
+	}
+
+	printFinal("🤖", "Analysis:")
+	fmt.Println()
+	fmt.Println(analysis)
+	fmt.Println()
+
+	return 0
 }
 
 func handleReverse(gitRoot string, force, verbose bool) int {

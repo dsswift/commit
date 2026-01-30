@@ -13,6 +13,9 @@ type Provider interface {
 	// Analyze sends an analysis request to the LLM and returns a commit plan.
 	Analyze(ctx context.Context, req *types.AnalysisRequest) (*types.CommitPlan, error)
 
+	// AnalyzeDiff sends a diff analysis request to the LLM and returns the analysis.
+	AnalyzeDiff(ctx context.Context, system, user string) (string, error)
+
 	// Name returns the provider name.
 	Name() string
 

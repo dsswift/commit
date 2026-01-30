@@ -143,6 +143,63 @@ func (p *AzureFoundryProvider) Analyze(ctx context.Context, req *types.AnalysisR
 	return plan, nil
 }
 
+// AnalyzeDiff sends a diff analysis request to Azure Foundry and returns the analysis.
+func (p *AzureFoundryProvider) AnalyzeDiff(ctx context.Context, system, user string) (string, error) {
+	requestBody := azureChatRequest{
+		Messages: []azureChatMessage{
+			{Role: "system", Content: system},
+			{Role: "user", Content: user},
+		},
+		Temperature: 0.3,
+		MaxTokens:   2000,
+	}
+
+	bodyBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to marshal request", Err: err}
+	}
+
+	url := fmt.Sprintf("%s/openai/deployments/%s/chat/completions?api-version=%s",
+		p.endpoint, p.deployment, defaultAzureAPIVersion)
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to create request", Err: err}
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("api-key", p.apiKey)
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return "", &ProviderError{Provider: "azure-foundry", Message: "request failed", Err: err}
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to read response", Err: err}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", &ProviderError{
+			Provider: "azure-foundry",
+			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
+		}
+	}
+
+	var chatResp azureChatResponse
+	if err := json.Unmarshal(respBody, &chatResp); err != nil {
+		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to parse response", Err: err}
+	}
+
+	if len(chatResp.Choices) == 0 {
+		return "", &ProviderError{Provider: "azure-foundry", Message: "empty response from API"}
+	}
+
+	return chatResp.Choices[0].Message.Content, nil
+}
+
 // parseCommitPlan extracts a CommitPlan from the LLM response content.
 func parseCommitPlan(content string) (*types.CommitPlan, error) {
 	// Clean up the content - remove markdown code blocks if present

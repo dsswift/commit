@@ -128,6 +128,61 @@ func (p *AnthropicProvider) Analyze(ctx context.Context, req *types.AnalysisRequ
 	return &plan, nil
 }
 
+// AnalyzeDiff sends a diff analysis request to Anthropic and returns the analysis.
+func (p *AnthropicProvider) AnalyzeDiff(ctx context.Context, system, user string) (string, error) {
+	requestBody := anthropicRequest{
+		Model:     p.model,
+		MaxTokens: 2000,
+		System:    system,
+		Messages: []anthropicMessage{
+			{Role: "user", Content: user},
+		},
+	}
+
+	bodyBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", &ProviderError{Provider: "anthropic", Message: "failed to marshal request", Err: err}
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", anthropicAPIURL, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", &ProviderError{Provider: "anthropic", Message: "failed to create request", Err: err}
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("x-api-key", p.apiKey)
+	httpReq.Header.Set("anthropic-version", anthropicAPIVersion)
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return "", &ProviderError{Provider: "anthropic", Message: "request failed", Err: err}
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", &ProviderError{Provider: "anthropic", Message: "failed to read response", Err: err}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", &ProviderError{
+			Provider: "anthropic",
+			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
+		}
+	}
+
+	var anthropicResp anthropicResponse
+	if err := json.Unmarshal(respBody, &anthropicResp); err != nil {
+		return "", &ProviderError{Provider: "anthropic", Message: "failed to parse response", Err: err}
+	}
+
+	if len(anthropicResp.Content) == 0 {
+		return "", &ProviderError{Provider: "anthropic", Message: "empty response from API"}
+	}
+
+	return anthropicResp.Content[0].Text, nil
+}
+
 type anthropicRequest struct {
 	Model     string             `json:"model"`
 	MaxTokens int                `json:"max_tokens"`
