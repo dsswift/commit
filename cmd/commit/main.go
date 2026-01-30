@@ -36,6 +36,16 @@ func run() int {
 		return 0
 	}
 
+	if flags.upgrade {
+		fmt.Println("🔄 Checking for updates...")
+		result := updater.Upgrade(Version)
+		fmt.Println(updater.FormatUpgradeResult(result))
+		if result.Success {
+			return 0
+		}
+		return 1
+	}
+
 	// Generate execution ID and start logging
 	executionID := logging.GenerateExecutionID()
 	logger, err := logging.NewExecutionLogger(executionID)
@@ -108,6 +118,7 @@ type flags struct {
 	reverse   bool
 	force     bool
 	version   bool
+	upgrade   bool
 	provider  string
 }
 
@@ -121,6 +132,7 @@ func parseFlags() flags {
 	flag.BoolVar(&f.reverse, "reverse", false, "Reverse HEAD commit into uncommitted changes")
 	flag.BoolVar(&f.force, "force", false, "Force operation (for --reverse on pushed commits)")
 	flag.BoolVar(&f.version, "version", false, "Print version")
+	flag.BoolVar(&f.upgrade, "upgrade", false, "Upgrade to latest version")
 	flag.StringVar(&f.provider, "provider", "", "Override LLM provider")
 
 	flag.Parse()
