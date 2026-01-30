@@ -15,6 +15,7 @@ import (
 	"github.com/dsswift/commit/internal/llm"
 	"github.com/dsswift/commit/internal/logging"
 	"github.com/dsswift/commit/internal/planner"
+	"github.com/dsswift/commit/internal/updater"
 	"github.com/dsswift/commit/pkg/types"
 )
 
@@ -56,6 +57,12 @@ func run() int {
 	// Run cleanup in background
 	go logging.CleanupOldLogs()
 
+	// Start version check in background
+	versionChan := make(chan *updater.VersionInfo, 1)
+	go func() {
+		versionChan <- updater.CheckVersion(Version)
+	}()
+
 	// Execute main logic
 	result := execute(flags, logger)
 
@@ -79,6 +86,16 @@ func run() int {
 	// Log completion
 	if logger != nil {
 		logger.LogComplete(result.ExitCode, len(result.CommitsCreated))
+	}
+
+	// Check for version update (non-blocking)
+	select {
+	case versionInfo := <-versionChan:
+		if notice := updater.FormatUpdateNotice(versionInfo); notice != "" {
+			fmt.Print(notice)
+		}
+	default:
+		// Version check not complete, don't wait
 	}
 
 	return result.ExitCode
