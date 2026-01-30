@@ -1,0 +1,157 @@
+package llm
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/dsswift/commit/internal/assert"
+	"github.com/dsswift/commit/pkg/types"
+)
+
+const (
+	grokAPIURL     = "https://api.x.ai/v1/chat/completions"
+	defaultGrokModel = "grok-beta"
+)
+
+// GrokProvider implements the Provider interface for xAI's Grok.
+type GrokProvider struct {
+	apiKey string
+	model  string
+	client *http.Client
+}
+
+// NewGrokProvider creates a new Grok provider.
+func NewGrokProvider(apiKey, model string) (*GrokProvider, error) {
+	assert.NotEmptyString(apiKey, "Grok API key is required")
+
+	if model == "" {
+		model = defaultGrokModel
+	}
+
+	return &GrokProvider{
+		apiKey: apiKey,
+		model:  model,
+		client: &http.Client{
+			Timeout: 60 * time.Second,
+		},
+	}, nil
+}
+
+// Name returns the provider name.
+func (p *GrokProvider) Name() string {
+	return "grok"
+}
+
+// Model returns the model being used.
+func (p *GrokProvider) Model() string {
+	return p.model
+}
+
+// Analyze sends an analysis request to Grok and returns a commit plan.
+// Grok uses an OpenAI-compatible API.
+func (p *GrokProvider) Analyze(ctx context.Context, req *types.AnalysisRequest) (*types.CommitPlan, error) {
+	assert.NotNil(req, "analysis request cannot be nil")
+	assert.NotEmpty(req.Files, "analysis request must have files")
+
+	systemPrompt, userPrompt := BuildPrompt(req)
+
+	requestBody := grokRequest{
+		Model: p.model,
+		Messages: []grokMessage{
+			{Role: "system", Content: systemPrompt},
+			{Role: "user", Content: userPrompt},
+		},
+		Temperature: 0.3,
+		MaxTokens:   2000,
+	}
+
+	bodyBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, &ProviderError{Provider: "grok", Message: "failed to marshal request", Err: err}
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", grokAPIURL, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, &ProviderError{Provider: "grok", Message: "failed to create request", Err: err}
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return nil, &ProviderError{Provider: "grok", Message: "request failed", Err: err}
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, &ProviderError{Provider: "grok", Message: "failed to read response", Err: err}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, &ProviderError{
+			Provider: "grok",
+			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
+		}
+	}
+
+	var grokResp grokResponse
+	if err := json.Unmarshal(respBody, &grokResp); err != nil {
+		return nil, &ProviderError{Provider: "grok", Message: "failed to parse response", Err: err}
+	}
+
+	if len(grokResp.Choices) == 0 {
+		return nil, &ProviderError{Provider: "grok", Message: "empty response from API"}
+	}
+
+	content := grokResp.Choices[0].Message.Content
+
+	// Clean up and parse
+	content = strings.TrimSpace(content)
+	content = strings.TrimPrefix(content, "```json")
+	content = strings.TrimPrefix(content, "```")
+	content = strings.TrimSuffix(content, "```")
+	content = strings.TrimSpace(content)
+
+	var plan types.CommitPlan
+	if err := json.Unmarshal([]byte(content), &plan); err != nil {
+		return nil, &ProviderError{Provider: "grok", Message: "failed to parse commit plan", Err: err}
+	}
+
+	return &plan, nil
+}
+
+type grokRequest struct {
+	Model       string        `json:"model"`
+	Messages    []grokMessage `json:"messages"`
+	Temperature float64       `json:"temperature,omitempty"`
+	MaxTokens   int           `json:"max_tokens,omitempty"`
+}
+
+type grokMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type grokResponse struct {
+	Choices []grokChoice `json:"choices"`
+	Usage   grokUsage    `json:"usage"`
+}
+
+type grokChoice struct {
+	Message      grokMessage `json:"message"`
+	FinishReason string      `json:"finish_reason"`
+}
+
+type grokUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
