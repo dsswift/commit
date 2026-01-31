@@ -15,17 +15,20 @@ import (
 )
 
 const (
-	defaultAzureAPIVersion = "2024-02-15-preview"
-	defaultAzureTimeout    = 60 * time.Second
+	defaultAzureFoundryTimeout = 60 * time.Second
+	azureAnthropicAPIVersion   = "2023-06-01"
+	azureOpenAIAPIVersion      = "2024-02-15-preview"
 )
 
 // AzureFoundryProvider implements the Provider interface for Azure AI Foundry.
+// Automatically detects whether to use Anthropic or OpenAI API format based on deployment name.
 type AzureFoundryProvider struct {
 	endpoint   string
 	apiKey     string
 	deployment string
 	model      string
 	client     *http.Client
+	isAnthropic bool
 }
 
 // NewAzureFoundryProvider creates a new Azure Foundry provider.
@@ -37,15 +40,25 @@ func NewAzureFoundryProvider(endpoint, apiKey, deployment, model string) (*Azure
 	// Normalize endpoint - remove trailing slash
 	endpoint = strings.TrimSuffix(endpoint, "/")
 
+	// Detect if this is an Anthropic model based on deployment name
+	isAnthropic := isAnthropicDeployment(deployment)
+
 	return &AzureFoundryProvider{
-		endpoint:   endpoint,
-		apiKey:     apiKey,
-		deployment: deployment,
-		model:      model,
+		endpoint:    endpoint,
+		apiKey:      apiKey,
+		deployment:  deployment,
+		model:       model,
+		isAnthropic: isAnthropic,
 		client: &http.Client{
-			Timeout: defaultAzureTimeout,
+			Timeout: defaultAzureFoundryTimeout,
 		},
 	}, nil
+}
+
+// isAnthropicDeployment checks if the deployment name indicates an Anthropic model.
+func isAnthropicDeployment(deployment string) bool {
+	lower := strings.ToLower(deployment)
+	return strings.Contains(lower, "claude")
 }
 
 // Name returns the provider name.
@@ -63,90 +76,102 @@ func (p *AzureFoundryProvider) Model() string {
 
 // Analyze sends an analysis request to Azure Foundry and returns a commit plan.
 func (p *AzureFoundryProvider) Analyze(ctx context.Context, req *types.AnalysisRequest) (*types.CommitPlan, error) {
-	// PRECONDITIONS
 	assert.NotNil(req, "analysis request cannot be nil")
 	assert.NotEmpty(req.Files, "analysis request must have files")
 
 	systemPrompt, userPrompt := BuildPrompt(req)
 
-	// Build the request body (OpenAI-compatible format)
-	requestBody := azureChatRequest{
-		Messages: []azureChatMessage{
-			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: userPrompt},
-		},
-		Temperature: 0.3, // Lower temperature for more deterministic output
-		MaxTokens:   2000,
+	var content string
+	var err error
+
+	if p.isAnthropic {
+		content, err = p.callAnthropicAPI(ctx, systemPrompt, userPrompt)
+	} else {
+		content, err = p.callOpenAIAPI(ctx, systemPrompt, userPrompt)
 	}
 
-	bodyBytes, err := json.Marshal(requestBody)
 	if err != nil {
-		return nil, &ProviderError{Provider: "azure-foundry", Message: "failed to marshal request", Err: err}
+		return nil, err
 	}
 
-	// Build the URL
-	url := fmt.Sprintf("%s/openai/deployments/%s/chat/completions?api-version=%s",
-		p.endpoint, p.deployment, defaultAzureAPIVersion)
-
-	// Create the HTTP request
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return nil, &ProviderError{Provider: "azure-foundry", Message: "failed to create request", Err: err}
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("api-key", p.apiKey)
-
-	// Execute the request
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, &ProviderError{Provider: "azure-foundry", Message: "request failed", Err: err}
-	}
-	defer resp.Body.Close()
-
-	// Read the response body
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, &ProviderError{Provider: "azure-foundry", Message: "failed to read response", Err: err}
-	}
-
-	// Check for HTTP errors
-	if resp.StatusCode != http.StatusOK {
-		return nil, &ProviderError{
-			Provider: "azure-foundry",
-			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
-		}
-	}
-
-	// Parse the response
-	var chatResp azureChatResponse
-	if err := json.Unmarshal(respBody, &chatResp); err != nil {
-		return nil, &ProviderError{Provider: "azure-foundry", Message: "failed to parse response", Err: err}
-	}
-
-	if len(chatResp.Choices) == 0 {
-		return nil, &ProviderError{Provider: "azure-foundry", Message: "empty response from API"}
-	}
-
-	// Extract the content
-	content := chatResp.Choices[0].Message.Content
-
-	// Parse the commit plan from the response
 	plan, err := parseCommitPlan(content)
 	if err != nil {
 		return nil, &ProviderError{Provider: "azure-foundry", Message: "failed to parse commit plan", Err: err}
 	}
 
-	// POSTCONDITIONS
 	assert.NotNil(plan, "commit plan should not be nil")
-
 	return plan, nil
 }
 
 // AnalyzeDiff sends a diff analysis request to Azure Foundry and returns the analysis.
 func (p *AzureFoundryProvider) AnalyzeDiff(ctx context.Context, system, user string) (string, error) {
-	requestBody := azureChatRequest{
-		Messages: []azureChatMessage{
+	if p.isAnthropic {
+		return p.callAnthropicAPI(ctx, system, user)
+	}
+	return p.callOpenAIAPI(ctx, system, user)
+}
+
+// callAnthropicAPI makes a request using the Anthropic Messages API format.
+func (p *AzureFoundryProvider) callAnthropicAPI(ctx context.Context, system, user string) (string, error) {
+	requestBody := anthropicAPIRequest{
+		Model:     p.deployment,
+		MaxTokens: 2000,
+		System:    system,
+		Messages: []anthropicAPIMessage{
+			{Role: "user", Content: user},
+		},
+	}
+
+	bodyBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to marshal request", Err: err}
+	}
+
+	url := fmt.Sprintf("%s/anthropic/v1/messages", p.endpoint)
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to create request", Err: err}
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	httpReq.Header.Set("anthropic-version", azureAnthropicAPIVersion)
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return "", &ProviderError{Provider: "azure-foundry", Message: "request failed", Err: err}
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to read response", Err: err}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", &ProviderError{
+			Provider: "azure-foundry",
+			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
+		}
+	}
+
+	var anthropicResp anthropicAPIResponse
+	if err := json.Unmarshal(respBody, &anthropicResp); err != nil {
+		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to parse response", Err: err}
+	}
+
+	if len(anthropicResp.Content) == 0 {
+		return "", &ProviderError{Provider: "azure-foundry", Message: "empty response from API"}
+	}
+
+	return anthropicResp.Content[0].Text, nil
+}
+
+// callOpenAIAPI makes a request using the OpenAI-compatible API format.
+func (p *AzureFoundryProvider) callOpenAIAPI(ctx context.Context, system, user string) (string, error) {
+	requestBody := openAIAPIRequest{
+		Messages: []openAIAPIMessage{
 			{Role: "system", Content: system},
 			{Role: "user", Content: user},
 		},
@@ -160,7 +185,7 @@ func (p *AzureFoundryProvider) AnalyzeDiff(ctx context.Context, system, user str
 	}
 
 	url := fmt.Sprintf("%s/openai/deployments/%s/chat/completions?api-version=%s",
-		p.endpoint, p.deployment, defaultAzureAPIVersion)
+		p.endpoint, p.deployment, azureOpenAIAPIVersion)
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
 	if err != nil {
@@ -188,21 +213,20 @@ func (p *AzureFoundryProvider) AnalyzeDiff(ctx context.Context, system, user str
 		}
 	}
 
-	var chatResp azureChatResponse
-	if err := json.Unmarshal(respBody, &chatResp); err != nil {
+	var openAIResp openAIAPIResponse
+	if err := json.Unmarshal(respBody, &openAIResp); err != nil {
 		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to parse response", Err: err}
 	}
 
-	if len(chatResp.Choices) == 0 {
+	if len(openAIResp.Choices) == 0 {
 		return "", &ProviderError{Provider: "azure-foundry", Message: "empty response from API"}
 	}
 
-	return chatResp.Choices[0].Message.Content, nil
+	return openAIResp.Choices[0].Message.Content, nil
 }
 
 // parseCommitPlan extracts a CommitPlan from the LLM response content.
 func parseCommitPlan(content string) (*types.CommitPlan, error) {
-	// Clean up the content - remove markdown code blocks if present
 	content = strings.TrimSpace(content)
 	content = strings.TrimPrefix(content, "```json")
 	content = strings.TrimPrefix(content, "```")
@@ -217,30 +241,59 @@ func parseCommitPlan(content string) (*types.CommitPlan, error) {
 	return &plan, nil
 }
 
-// Azure API types (OpenAI-compatible)
+// Anthropic API types
 
-type azureChatRequest struct {
-	Messages    []azureChatMessage `json:"messages"`
-	Temperature float64            `json:"temperature,omitempty"`
-	MaxTokens   int                `json:"max_tokens,omitempty"`
+type anthropicAPIRequest struct {
+	Model     string               `json:"model"`
+	MaxTokens int                  `json:"max_tokens"`
+	System    string               `json:"system,omitempty"`
+	Messages  []anthropicAPIMessage `json:"messages"`
 }
 
-type azureChatMessage struct {
+type anthropicAPIMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-type azureChatResponse struct {
-	Choices []azureChatChoice `json:"choices"`
-	Usage   azureUsage        `json:"usage"`
+type anthropicAPIResponse struct {
+	Content []anthropicAPIContent `json:"content"`
+	Usage   anthropicAPIUsage     `json:"usage"`
 }
 
-type azureChatChoice struct {
-	Message      azureChatMessage `json:"message"`
+type anthropicAPIContent struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+type anthropicAPIUsage struct {
+	InputTokens  int `json:"input_tokens"`
+	OutputTokens int `json:"output_tokens"`
+}
+
+// OpenAI API types
+
+type openAIAPIRequest struct {
+	Messages    []openAIAPIMessage `json:"messages"`
+	Temperature float64            `json:"temperature,omitempty"`
+	MaxTokens   int                `json:"max_tokens,omitempty"`
+}
+
+type openAIAPIMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type openAIAPIResponse struct {
+	Choices []openAIAPIChoice `json:"choices"`
+	Usage   openAIAPIUsage    `json:"usage"`
+}
+
+type openAIAPIChoice struct {
+	Message      openAIAPIMessage `json:"message"`
 	FinishReason string           `json:"finish_reason"`
 }
 
-type azureUsage struct {
+type openAIAPIUsage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
