@@ -1,6 +1,7 @@
 package planner
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/dsswift/commit/internal/assert"
@@ -66,6 +67,12 @@ func (e *Executor) Execute(plan *types.CommitPlan, progress ExecutionProgress) (
 		// Execute the actual commit
 		result, err := e.committer.ExecutePlannedCommit(planned)
 		if err != nil {
+			// Skip commits where all files were directories (nothing to stage)
+			var noStagedErr *git.NoStagedFilesError
+			if errors.As(err, &noStagedErr) {
+				// Skip this commit silently - all paths were directories
+				continue
+			}
 			return executed, &ExecutionError{
 				CommitIndex: i,
 				Planned:     planned,
@@ -76,9 +83,9 @@ func (e *Executor) Execute(plan *types.CommitPlan, progress ExecutionProgress) (
 		executed = append(executed, *result)
 	}
 
-	// POSTCONDITIONS
-	if !e.dryRun {
-		assert.LenEquals(executed, total, "should have executed all planned commits")
+	// POSTCONDITIONS - we may have fewer commits if some were skipped (directories only)
+	if !e.dryRun && len(executed) == 0 {
+		return executed, fmt.Errorf("no commits were executed (all planned commits contained only directories)")
 	}
 
 	return executed, nil
