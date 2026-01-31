@@ -78,6 +78,11 @@ func (c *Collector) Status() (*types.GitStatus, error) {
 			}
 		}
 
+		// Skip files that are ignored by .gitignore
+		if c.IsIgnored(filename) {
+			continue
+		}
+
 		// Classify the file based on status codes
 		switch {
 		case indexStatus == 'M' || workTreeStatus == 'M':
@@ -99,6 +104,13 @@ func (c *Collector) Status() (*types.GitStatus, error) {
 	}
 
 	return status, scanner.Err()
+}
+
+// IsIgnored checks if a file is ignored by .gitignore.
+func (c *Collector) IsIgnored(file string) bool {
+	cmd := exec.Command("git", "check-ignore", "-q", file)
+	cmd.Dir = c.workDir
+	return cmd.Run() == nil
 }
 
 // Diff returns the diff for the specified files or all changes.
