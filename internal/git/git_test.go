@@ -673,16 +673,16 @@ func TestStager_StageFiles_Directory(t *testing.T) {
 
 	stager := NewStager(repoDir)
 
-	// Staging a directory should silently skip it (not error)
+	// Staging a directory should expand to all files within it
 	err := stager.StageFiles([]string{"subdir"})
 	if err != nil {
 		t.Errorf("staging directory should not error, got: %v", err)
 	}
 
-	// Nothing should be staged since we only passed a directory
+	// Both files in the directory should be staged
 	staged, _ := stager.StagedFiles()
-	if len(staged) != 0 {
-		t.Errorf("expected 0 staged files when only directory provided, got %d: %v", len(staged), staged)
+	if len(staged) != 2 {
+		t.Errorf("expected 2 staged files when directory provided, got %d: %v", len(staged), staged)
 	}
 }
 
@@ -696,19 +696,16 @@ func TestStager_StageFiles_MixedFilesAndDirectories(t *testing.T) {
 
 	stager := NewStager(repoDir)
 
-	// Stage mix of file and directory - should only stage the file
+	// Stage mix of file and directory - should stage both the file and directory contents
 	err := stager.StageFiles([]string{"root.txt", "subdir"})
 	if err != nil {
 		t.Errorf("staging mixed files/dirs should not error, got: %v", err)
 	}
 
-	// Only the file should be staged
+	// Both files should be staged (root.txt + subdir/nested.txt)
 	staged, _ := stager.StagedFiles()
-	if len(staged) != 1 {
-		t.Errorf("expected 1 staged file, got %d: %v", len(staged), staged)
-	}
-	if len(staged) > 0 && staged[0] != "root.txt" {
-		t.Errorf("expected 'root.txt' to be staged, got: %v", staged)
+	if len(staged) != 2 {
+		t.Errorf("expected 2 staged files, got %d: %v", len(staged), staged)
 	}
 }
 
@@ -722,16 +719,39 @@ func TestStager_StageFiles_OnlyDirectories(t *testing.T) {
 
 	stager := NewStager(repoDir)
 
-	// Staging only directories should succeed but stage nothing
+	// Staging directories should expand to their files
 	err := stager.StageFiles([]string{"dir1", "dir2"})
 	if err != nil {
-		t.Errorf("staging only directories should not error, got: %v", err)
+		t.Errorf("staging directories should not error, got: %v", err)
+	}
+
+	// Files from both directories should be staged
+	staged, _ := stager.StagedFiles()
+	if len(staged) != 2 {
+		t.Errorf("expected 2 staged files, got %d: %v", len(staged), staged)
+	}
+}
+
+func TestStager_StageFiles_EmptyDirectory(t *testing.T) {
+	repoDir, cleanup := testRepo(t)
+	defer cleanup()
+
+	// Create an empty directory
+	emptyDir := filepath.Join(repoDir, "empty")
+	os.MkdirAll(emptyDir, 0755)
+
+	stager := NewStager(repoDir)
+
+	// Staging an empty directory should succeed but stage nothing
+	err := stager.StageFiles([]string{"empty"})
+	if err != nil {
+		t.Errorf("staging empty directory should not error, got: %v", err)
 	}
 
 	// Nothing should be staged
 	staged, _ := stager.StagedFiles()
 	if len(staged) != 0 {
-		t.Errorf("expected 0 staged files, got %d: %v", len(staged), staged)
+		t.Errorf("expected 0 staged files for empty dir, got %d: %v", len(staged), staged)
 	}
 }
 
@@ -741,17 +761,19 @@ func TestStager_StageFiles_NestedDirectory(t *testing.T) {
 
 	// Create nested directory structure
 	createFile(t, repoDir, "a/b/c/deep.txt", "deep content")
+	createFile(t, repoDir, "a/b/shallow.txt", "shallow content")
 
 	stager := NewStager(repoDir)
 
-	// Staging parent directory should be skipped
+	// Staging parent directory should include all nested files
 	err := stager.StageFiles([]string{"a/b"})
 	if err != nil {
 		t.Errorf("staging nested directory should not error, got: %v", err)
 	}
 
+	// Both files under a/b should be staged
 	staged, _ := stager.StagedFiles()
-	if len(staged) != 0 {
-		t.Errorf("expected 0 staged files, got %d: %v", len(staged), staged)
+	if len(staged) != 2 {
+		t.Errorf("expected 2 staged files, got %d: %v", len(staged), staged)
 	}
 }

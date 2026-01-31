@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/dsswift/commit/internal/assert"
@@ -20,12 +21,12 @@ func NewStager(workDir string) *Stager {
 }
 
 // StageFiles adds specific files to the staging area.
-// Directories are silently skipped - only files are staged.
+// Directories are expanded to include all files within them.
 func (s *Stager) StageFiles(files []string) error {
 	// PRECONDITIONS
 	assert.NotEmpty(files, "files cannot be empty")
 
-	// Filter out directories - only stage actual files
+	// Expand directories to their contained files
 	var filesToStage []string
 	for _, f := range files {
 		fullPath := s.fullPath(f)
@@ -40,14 +41,18 @@ func (s *Stager) StageFiles(files []string) error {
 		} else if err != nil {
 			return fmt.Errorf("failed to stat file %s: %w", f, err)
 		} else if info.IsDir() {
-			// Skip directories silently
-			continue
+			// Expand directory to all files within it
+			dirFiles, err := s.expandDirectory(f)
+			if err != nil {
+				return fmt.Errorf("failed to expand directory %s: %w", f, err)
+			}
+			filesToStage = append(filesToStage, dirFiles...)
 		} else {
 			filesToStage = append(filesToStage, f)
 		}
 	}
 
-	// If all paths were directories, nothing to stage
+	// If all paths were empty directories, nothing to stage
 	if len(filesToStage) == 0 {
 		return nil
 	}
@@ -188,6 +193,38 @@ func (s *Stager) fullPath(file string) string {
 		return file
 	}
 	return s.workDir + "/" + file
+}
+
+// expandDirectory returns all files within a directory (recursively).
+// Returns paths relative to the work directory.
+func (s *Stager) expandDirectory(dir string) ([]string, error) {
+	var files []string
+	fullDir := s.fullPath(dir)
+
+	err := filepath.Walk(fullDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil // Skip directories themselves, we only want files
+		}
+
+		// Convert back to relative path
+		relPath, err := filepath.Rel(s.workDir, path)
+		if err != nil {
+			return err
+		}
+
+		// Skip ignored files
+		if s.isIgnored(relPath) {
+			return nil
+		}
+
+		files = append(files, relPath)
+		return nil
+	})
+
+	return files, err
 }
 
 // HasStagedChanges returns true if there are any staged changes.
