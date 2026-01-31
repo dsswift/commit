@@ -50,11 +50,29 @@ func (s *Stager) StageFiles(files []string) error {
 		return fmt.Errorf("failed to verify staging: %w", err)
 	}
 
+	stagedSet := make(map[string]bool)
+	for _, f := range staged {
+		stagedSet[f] = true
+	}
+
 	for _, f := range files {
-		assert.Contains(staged, f, "file should be staged after add: %s", f)
+		if !stagedSet[f] {
+			// Check if file is ignored by git
+			if s.isIgnored(f) {
+				return fmt.Errorf("file is ignored by .gitignore: %s", f)
+			}
+			return fmt.Errorf("file could not be staged (unknown reason): %s", f)
+		}
 	}
 
 	return nil
+}
+
+// isIgnored checks if a file is ignored by git.
+func (s *Stager) isIgnored(file string) bool {
+	cmd := exec.Command("git", "check-ignore", "-q", file)
+	cmd.Dir = s.workDir
+	return cmd.Run() == nil
 }
 
 // UnstageAll removes all files from the staging area (keeps changes in working directory).

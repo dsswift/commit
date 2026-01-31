@@ -574,3 +574,91 @@ func containsString(s, substr string) bool {
 	}
 	return false
 }
+
+// createGitignore creates a .gitignore file in the test repo
+func createGitignore(t *testing.T, repoDir string, patterns ...string) {
+	t.Helper()
+	content := ""
+	for _, p := range patterns {
+		content += p + "\n"
+	}
+	createFile(t, repoDir, ".gitignore", content)
+}
+
+func TestCollector_IsIgnored(t *testing.T) {
+	repoDir, cleanup := testRepo(t)
+	defer cleanup()
+
+	createGitignore(t, repoDir, "*.log", "build/")
+
+	collector := NewCollector(repoDir)
+
+	// Ignored files
+	if !collector.IsIgnored("debug.log") {
+		t.Error("expected *.log to be ignored")
+	}
+	if !collector.IsIgnored("build/output.txt") {
+		t.Error("expected build/ to be ignored")
+	}
+
+	// Not ignored files
+	if collector.IsIgnored("main.go") {
+		t.Error("expected main.go to not be ignored")
+	}
+	if collector.IsIgnored("src/app.go") {
+		t.Error("expected src/app.go to not be ignored")
+	}
+}
+
+func TestCollector_Status_IgnoredFilesFiltered(t *testing.T) {
+	repoDir, cleanup := testRepo(t)
+	defer cleanup()
+
+	// Create gitignore first
+	createGitignore(t, repoDir, "*.log", "ignored.txt")
+	gitAdd(t, repoDir, ".gitignore")
+	gitCommit(t, repoDir, "add gitignore")
+
+	// Create some files - some ignored, some not
+	createFile(t, repoDir, "app.go", "package main")
+	createFile(t, repoDir, "debug.log", "log content")
+	createFile(t, repoDir, "ignored.txt", "ignored content")
+
+	collector := NewCollector(repoDir)
+	status, err := collector.Status()
+	if err != nil {
+		t.Fatalf("Status failed: %v", err)
+	}
+
+	// Should only have app.go as untracked
+	if len(status.Untracked) != 1 {
+		t.Errorf("expected 1 untracked file, got %d: %v", len(status.Untracked), status.Untracked)
+	}
+	if len(status.Untracked) > 0 && status.Untracked[0] != "app.go" {
+		t.Errorf("expected 'app.go', got %q", status.Untracked[0])
+	}
+}
+
+func TestStager_StageFiles_IgnoredFile(t *testing.T) {
+	repoDir, cleanup := testRepo(t)
+	defer cleanup()
+
+	// Create gitignore
+	createGitignore(t, repoDir, "*.log")
+	gitAdd(t, repoDir, ".gitignore")
+	gitCommit(t, repoDir, "add gitignore")
+
+	// Create an ignored file
+	createFile(t, repoDir, "debug.log", "log content")
+
+	stager := NewStager(repoDir)
+	err := stager.StageFiles([]string{"debug.log"})
+
+	// Should return an error about ignored file
+	if err == nil {
+		t.Error("expected error when staging ignored file")
+	}
+	if err != nil && !containsString(err.Error(), "ignored") {
+		t.Errorf("expected error to mention 'ignored', got: %v", err)
+	}
+}
