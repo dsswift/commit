@@ -12,6 +12,7 @@ import (
 	"github.com/dsswift/commit/internal/analyzer"
 	"github.com/dsswift/commit/internal/config"
 	"github.com/dsswift/commit/internal/git"
+	"github.com/dsswift/commit/internal/interactive"
 	"github.com/dsswift/commit/internal/llm"
 	"github.com/dsswift/commit/internal/logging"
 	"github.com/dsswift/commit/internal/planner"
@@ -49,6 +50,11 @@ func run() int {
 	// Handle --diff flag
 	if flags.diffFile != "" {
 		return handleDiff(flags)
+	}
+
+	// Handle --interactive flag
+	if flags.interactive {
+		return handleInteractive(flags)
 	}
 
 	// Generate execution ID and start logging
@@ -117,17 +123,18 @@ func run() int {
 }
 
 type flags struct {
-	staged    bool
-	dryRun    bool
-	verbose   bool
-	reverse   bool
-	force     bool
-	version   bool
-	upgrade   bool
-	diffFile  string
-	diffFrom  string
-	diffTo    string
-	provider  string
+	staged      bool
+	dryRun      bool
+	verbose     bool
+	reverse     bool
+	force       bool
+	interactive bool
+	version     bool
+	upgrade     bool
+	diffFile    string
+	diffFrom    string
+	diffTo      string
+	provider    string
 }
 
 func parseFlags() flags {
@@ -138,7 +145,9 @@ func parseFlags() flags {
 	flag.BoolVar(&f.verbose, "v", false, "Verbose output")
 	flag.BoolVar(&f.verbose, "verbose", false, "Verbose output")
 	flag.BoolVar(&f.reverse, "reverse", false, "Reverse HEAD commit into uncommitted changes")
-	flag.BoolVar(&f.force, "force", false, "Force operation (for --reverse on pushed commits)")
+	flag.BoolVar(&f.force, "force", false, "Force operation (for --reverse/--interactive on pushed commits)")
+	flag.BoolVar(&f.interactive, "i", false, "Interactive rebase wizard")
+	flag.BoolVar(&f.interactive, "interactive", false, "Interactive rebase wizard")
 	flag.BoolVar(&f.version, "version", false, "Print version")
 	flag.BoolVar(&f.upgrade, "upgrade", false, "Upgrade to latest version")
 	flag.StringVar(&f.diffFile, "diff", "", "Analyze changes to a specific file")
@@ -470,6 +479,48 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 	result.Duration = time.Since(startTime)
 	result.CommitsCreated = executed
 	return result
+}
+
+func handleInteractive(flags flags) int {
+	cwd, err := os.Getwd()
+	if err != nil {
+		printError("Failed to get current directory", err)
+		return 1
+	}
+
+	gitRoot, err := git.FindGitRoot(cwd)
+	if err != nil {
+		printError("Not a git repository", err)
+		return 1
+	}
+
+	// Run the interactive wizard
+	completed, err := interactive.Run(interactive.Config{
+		GitRoot: gitRoot,
+		Force:   flags.force,
+	})
+
+	if err != nil {
+		// Check if it's a pushed commit error
+		if _, ok := err.(*interactive.PushedCommitError); ok {
+			printStepError("Rebase includes pushed commits")
+			printFinal("❌", "Cannot rebase pushed commits")
+			fmt.Println("\n   Some commits in this rebase have been pushed to origin.")
+			fmt.Println("   Rebasing will require force-push to sync with remote.")
+			fmt.Println("\n   Use -i --force to proceed.")
+			return 1
+		}
+		printError("Interactive rebase failed", err)
+		return 1
+	}
+
+	if completed {
+		printFinal("✅", "Rebase completed successfully")
+	} else {
+		fmt.Println("Cancelled.")
+	}
+
+	return 0
 }
 
 func handleDiff(flags flags) int {

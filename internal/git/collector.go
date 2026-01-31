@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dsswift/commit/internal/assert"
 	"github.com/dsswift/commit/pkg/types"
@@ -396,4 +397,154 @@ func (c *Collector) GetFileStats(stagedOnly bool) ([]FileStat, error) {
 	}
 
 	return stats, scanner.Err()
+}
+
+// CommitInfo represents detailed information about a commit for interactive rebase.
+type CommitInfo struct {
+	Hash      string
+	ShortHash string
+	Message   string
+	Author    string
+	Date      time.Time
+	IsPushed  bool
+}
+
+// GetCommitLog returns detailed commit information for interactive rebase.
+// The commits are returned in reverse chronological order (most recent first).
+func (c *Collector) GetCommitLog(count int) ([]CommitInfo, error) {
+	assert.Positive(count, "commit count must be positive")
+
+	// Use a custom format to get all needed fields
+	// Format: hash|short_hash|author|date_unix|subject
+	format := "%H|%h|%an|%at|%s"
+	args := []string{"log", fmt.Sprintf("-%d", count), "--format=" + format}
+	cmd := exec.Command("git", args...)
+	cmd.Dir = c.workDir
+
+	out, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 128 {
+			return []CommitInfo{}, nil
+		}
+		return nil, fmt.Errorf("failed to get commit log: %w", err)
+	}
+
+	// Get remote tracking info to check pushed status
+	remoteBranches, _ := c.getRemoteBranches()
+
+	var commits []CommitInfo
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.SplitN(line, "|", 5)
+		if len(parts) != 5 {
+			continue
+		}
+
+		hash := parts[0]
+		shortHash := parts[1]
+		author := parts[2]
+		dateUnix, _ := strconv.ParseInt(parts[3], 10, 64)
+		message := parts[4]
+
+		isPushed := c.isCommitOnRemote(hash, remoteBranches)
+
+		commits = append(commits, CommitInfo{
+			Hash:      hash,
+			ShortHash: shortHash,
+			Author:    author,
+			Date:      time.Unix(dateUnix, 0),
+			Message:   message,
+			IsPushed:  isPushed,
+		})
+	}
+
+	return commits, scanner.Err()
+}
+
+// GetCommitsInRange returns commits between two refs (exclusive of 'from', inclusive of 'to').
+func (c *Collector) GetCommitsInRange(from, to string) ([]CommitInfo, error) {
+	format := "%H|%h|%an|%at|%s"
+	args := []string{"log", "--format=" + format, from + ".." + to}
+	cmd := exec.Command("git", args...)
+	cmd.Dir = c.workDir
+
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get commits in range: %w", err)
+	}
+
+	remoteBranches, _ := c.getRemoteBranches()
+
+	var commits []CommitInfo
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.SplitN(line, "|", 5)
+		if len(parts) != 5 {
+			continue
+		}
+
+		hash := parts[0]
+		shortHash := parts[1]
+		author := parts[2]
+		dateUnix, _ := strconv.ParseInt(parts[3], 10, 64)
+		message := parts[4]
+
+		isPushed := c.isCommitOnRemote(hash, remoteBranches)
+
+		commits = append(commits, CommitInfo{
+			Hash:      hash,
+			ShortHash: shortHash,
+			Author:    author,
+			Date:      time.Unix(dateUnix, 0),
+			Message:   message,
+			IsPushed:  isPushed,
+		})
+	}
+
+	return commits, scanner.Err()
+}
+
+// getRemoteBranches returns a set of commit hashes that exist on remote branches.
+func (c *Collector) getRemoteBranches() (map[string]bool, error) {
+	cmd := exec.Command("git", "branch", "-r", "--format=%(objectname)")
+	cmd.Dir = c.workDir
+
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	branches := make(map[string]bool)
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	for scanner.Scan() {
+		hash := strings.TrimSpace(scanner.Text())
+		if hash != "" {
+			branches[hash] = true
+		}
+	}
+
+	return branches, nil
+}
+
+// isCommitOnRemote checks if a commit is reachable from any remote branch.
+func (c *Collector) isCommitOnRemote(hash string, remoteBranches map[string]bool) bool {
+	// Quick check: is this commit itself a remote branch tip?
+	if remoteBranches[hash] {
+		return true
+	}
+
+	// Check if any remote branch contains this commit
+	cmd := exec.Command("git", "branch", "-r", "--contains", hash)
+	cmd.Dir = c.workDir
+
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+
+	return len(strings.TrimSpace(string(out))) > 0
 }
