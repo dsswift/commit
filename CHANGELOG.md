@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.2.0](https://github.com/dsswift/commit/compare/v1.1.0...v1.2.0) (2026-01-31)
+
+
+### Features
+
+* skip directories when staging files ([1575984](https://github.com/dsswift/commit/commit/1575984bf51f2e20b887d77f1476930e169a2733))
+
 ## [1.1.0](https://github.com/dsswift/commit/compare/v1.0.0...v1.1.0) (2026-01-31)
 
 
