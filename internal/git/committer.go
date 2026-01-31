@@ -135,6 +135,15 @@ func (c *Committer) VerifyCommit(expectedHash string, expectedFiles []string) er
 	return nil
 }
 
+// NoStagedFilesError is returned when a commit has no stageable files (e.g., all directories).
+type NoStagedFilesError struct {
+	PlannedFiles []string
+}
+
+func (e *NoStagedFilesError) Error() string {
+	return fmt.Sprintf("no stageable files in commit (all %d paths were directories)", len(e.PlannedFiles))
+}
+
 // ExecutePlannedCommit executes a single planned commit.
 func (c *Committer) ExecutePlannedCommit(planned types.PlannedCommit) (*types.ExecutedCommit, error) {
 	// PRECONDITIONS
@@ -153,6 +162,15 @@ func (c *Committer) ExecutePlannedCommit(planned types.PlannedCommit) (*types.Ex
 	// Stage the specific files for this commit
 	if err := stager.StageFiles(planned.Files); err != nil {
 		return nil, fmt.Errorf("failed to stage files: %w", err)
+	}
+
+	// Check if anything was actually staged (directories are silently skipped)
+	hasStaged, err := stager.HasStagedChanges()
+	if err != nil {
+		return nil, fmt.Errorf("failed to check staged changes: %w", err)
+	}
+	if !hasStaged {
+		return nil, &NoStagedFilesError{PlannedFiles: planned.Files}
 	}
 
 	// Create the commit
