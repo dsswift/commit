@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.3.0](https://github.com/dsswift/commit/compare/v1.2.0...v1.3.0) (2026-01-31)
+
+
+### Features
+
+* add error for commits with no stageable files ([675b30d](https://github.com/dsswift/commit/commit/675b30d08a7d9d9dcf83ebdfc6247de2e1d2349b))
+* expand directories to files when staging ([76c12ce](https://github.com/dsswift/commit/commit/76c12ceb0c049023d7653a99b809cf387682f299))
+
 ## [1.2.0](https://github.com/dsswift/commit/compare/v1.1.0...v1.2.0) (2026-01-31)
 
 
