@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0](https://github.com/dsswift/commit/compare/v1.0.0...v1.1.0) (2026-01-31)
+
+
+### Features
+
+* add anthropic model support to azure foundry ([014161b](https://github.com/dsswift/commit/commit/014161b0a3f3e26241c750d571ca5baa67966845))
+* add interactive rebase wizard ([456cebd](https://github.com/dsswift/commit/commit/456cebdbf0b5baa04f40d4f23aa1fa1859e1eb23))
+* filter ignored files from git status ([bc9fdd2](https://github.com/dsswift/commit/commit/bc9fdd28752cda3ed83bcdb23c9efa16830c7872))
+
 ## 1.0.0 (2026-01-30)
 
 
