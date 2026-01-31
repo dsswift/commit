@@ -20,23 +20,40 @@ func NewStager(workDir string) *Stager {
 }
 
 // StageFiles adds specific files to the staging area.
+// Directories are silently skipped - only files are staged.
 func (s *Stager) StageFiles(files []string) error {
 	// PRECONDITIONS
 	assert.NotEmpty(files, "files cannot be empty")
 
+	// Filter out directories - only stage actual files
+	var filesToStage []string
 	for _, f := range files {
 		fullPath := s.fullPath(f)
-		// File should exist (unless it's a deletion)
-		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		info, err := os.Stat(fullPath)
+		if os.IsNotExist(err) {
 			// Check if it's a tracked deleted file
 			if !s.isTrackedFile(f) {
 				return fmt.Errorf("file does not exist and is not tracked: %s", f)
 			}
+			// Deleted tracked file - include it
+			filesToStage = append(filesToStage, f)
+		} else if err != nil {
+			return fmt.Errorf("failed to stat file %s: %w", f, err)
+		} else if info.IsDir() {
+			// Skip directories silently
+			continue
+		} else {
+			filesToStage = append(filesToStage, f)
 		}
 	}
 
+	// If all paths were directories, nothing to stage
+	if len(filesToStage) == 0 {
+		return nil
+	}
+
 	// EXECUTION
-	args := append([]string{"add"}, files...)
+	args := append([]string{"add"}, filesToStage...)
 	cmd := exec.Command("git", args...)
 	cmd.Dir = s.workDir
 
@@ -55,7 +72,7 @@ func (s *Stager) StageFiles(files []string) error {
 		stagedSet[f] = true
 	}
 
-	for _, f := range files {
+	for _, f := range filesToStage {
 		if !stagedSet[f] {
 			// Check if file is ignored by git
 			if s.isIgnored(f) {
