@@ -80,6 +80,49 @@ func TestBuildPrompt_NoRecentCommits(t *testing.T) {
 	}
 }
 
+func TestBuildPrompt_SingleCommit(t *testing.T) {
+	req := &types.AnalysisRequest{
+		Files: []types.FileChange{
+			{Path: "file1.go", Status: "modified"},
+			{Path: "file2.go", Status: "added"},
+		},
+		Diff:         "diff",
+		HasScopes:    false,
+		SingleCommit: true,
+		Rules: types.CommitRules{
+			Types:            []string{"feat", "fix"},
+			MaxMessageLength: 50,
+		},
+	}
+
+	_, user := BuildPrompt(req)
+
+	if !containsString(user, "ONE commit") {
+		t.Error("user prompt should instruct single commit when SingleCommit is true")
+	}
+}
+
+func TestBuildPrompt_MultipleCommits(t *testing.T) {
+	req := &types.AnalysisRequest{
+		Files: []types.FileChange{
+			{Path: "file1.go", Status: "modified"},
+		},
+		Diff:         "diff",
+		HasScopes:    false,
+		SingleCommit: false,
+		Rules: types.CommitRules{
+			Types:            []string{"feat", "fix"},
+			MaxMessageLength: 50,
+		},
+	}
+
+	_, user := BuildPrompt(req)
+
+	if containsString(user, "ONE commit") {
+		t.Error("user prompt should NOT instruct single commit when SingleCommit is false")
+	}
+}
+
 func TestParseCommitPlan_ValidJSON(t *testing.T) {
 	content := `{
 		"commits": [
