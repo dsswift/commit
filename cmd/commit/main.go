@@ -374,11 +374,11 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 		logger.LogLLMResponse(0, len(plan.Commits))
 	}
 
-	// Validate plan
+	// Validate and fix plan (merges overlapping commits, truncates long messages)
 	printStep("📋", "Planning commits...")
 
 	validator := planner.NewValidator(gitRoot, repoConfig, files)
-	validationResult := validator.Validate(plan)
+	plan, validationResult := validator.ValidateAndFix(plan)
 
 	// Log validation
 	if logger != nil {

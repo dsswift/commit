@@ -164,10 +164,104 @@ func (v *Validator) ValidateAndFix(plan *types.CommitPlan) (*types.CommitPlan, *
 		}
 	}
 
+	// Merge commits that share files
+	fixedPlan.Commits = v.mergeOverlappingCommits(fixedPlan.Commits)
+
 	// Validate the fixed plan
 	result := v.Validate(fixedPlan)
 
 	return fixedPlan, result
+}
+
+// mergeOverlappingCommits merges commits that share files into single commits.
+// When the LLM incorrectly puts the same file in multiple commits, this fixes it.
+func (v *Validator) mergeOverlappingCommits(commits []types.PlannedCommit) []types.PlannedCommit {
+	if len(commits) <= 1 {
+		return commits
+	}
+
+	// Build a map of file -> commit indices that contain it
+	fileToCommits := make(map[string][]int)
+	for i, commit := range commits {
+		for _, file := range commit.Files {
+			fileToCommits[file] = append(fileToCommits[file], i)
+		}
+	}
+
+	// Find commits that need to be merged (share at least one file)
+	// Use union-find to group connected commits
+	parent := make([]int, len(commits))
+	for i := range parent {
+		parent[i] = i
+	}
+
+	var find func(i int) int
+	find = func(i int) int {
+		if parent[i] != i {
+			parent[i] = find(parent[i])
+		}
+		return parent[i]
+	}
+
+	union := func(i, j int) {
+		pi, pj := find(i), find(j)
+		if pi != pj {
+			parent[pi] = pj
+		}
+	}
+
+	// Union commits that share files
+	for _, indices := range fileToCommits {
+		if len(indices) > 1 {
+			for i := 1; i < len(indices); i++ {
+				union(indices[0], indices[i])
+			}
+		}
+	}
+
+	// Group commits by their root
+	groups := make(map[int][]int)
+	for i := range commits {
+		root := find(i)
+		groups[root] = append(groups[root], i)
+	}
+
+	// Build merged commits
+	var result []types.PlannedCommit
+	for _, indices := range groups {
+		if len(indices) == 1 {
+			// No merge needed
+			result = append(result, commits[indices[0]])
+		} else {
+			// Merge commits: take first commit's type/scope, combine messages and files
+			merged := commits[indices[0]]
+
+			// Collect all unique files
+			fileSet := make(map[string]bool)
+			for _, file := range merged.Files {
+				fileSet[file] = true
+			}
+
+			// Merge in other commits
+			for _, idx := range indices[1:] {
+				other := commits[idx]
+				for _, file := range other.Files {
+					fileSet[file] = true
+				}
+				// If messages differ, could append, but for now just keep first
+			}
+
+			// Rebuild files slice
+			merged.Files = nil
+			for file := range fileSet {
+				merged.Files = append(merged.Files, file)
+			}
+
+			result = append(result, merged)
+		}
+	}
+
+	return result
 }
 
 // SensitiveFiles is a list of file patterns that should never be committed.
