@@ -279,6 +279,53 @@ func TestValidateAndFix_TruncatesLongMessage(t *testing.T) {
 	}
 }
 
+func TestValidateAndFix_MergesOverlappingCommits(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "planner-test-*")
+	defer os.RemoveAll(tmpDir)
+	os.WriteFile(filepath.Join(tmpDir, "shared.go"), []byte("content"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "only_a.go"), []byte("content"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "only_b.go"), []byte("content"), 0644)
+
+	config := &types.RepoConfig{}
+	validator := NewValidator(tmpDir, config, []string{"shared.go", "only_a.go", "only_b.go"})
+
+	// LLM incorrectly put shared.go in both commits
+	plan := &types.CommitPlan{
+		Commits: []types.PlannedCommit{
+			{
+				Type:    "feat",
+				Message: "add feature a",
+				Files:   []string{"shared.go", "only_a.go"},
+			},
+			{
+				Type:    "refactor",
+				Message: "refactor feature b",
+				Files:   []string{"shared.go", "only_b.go"},
+			},
+		},
+	}
+
+	fixedPlan, result := validator.ValidateAndFix(plan)
+
+	if fixedPlan == nil {
+		t.Fatal("expected non-nil fixed plan")
+	}
+
+	// Should have merged into 1 commit
+	if len(fixedPlan.Commits) != 1 {
+		t.Errorf("expected 1 merged commit, got %d", len(fixedPlan.Commits))
+	}
+
+	// Should have all 3 files
+	if len(fixedPlan.Commits) > 0 && len(fixedPlan.Commits[0].Files) != 3 {
+		t.Errorf("expected 3 files in merged commit, got %d: %v", len(fixedPlan.Commits[0].Files), fixedPlan.Commits[0].Files)
+	}
+
+	if !result.Valid {
+		t.Errorf("expected valid result after fix, got errors: %v", result.Errors)
+	}
+}
+
 func TestFilterSensitiveFiles(t *testing.T) {
 	plan := &types.CommitPlan{
 		Commits: []types.PlannedCommit{
