@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.4.0](https://github.com/dsswift/commit/compare/v1.3.0...v1.4.0) (2026-02-01)
+
+
+### Features
+
+* add single commit mode flag ([42a9254](https://github.com/dsswift/commit/commit/42a9254388feb36a91fd394d0a9ddb8036f40e18))
+* implement single commit mode in llm prompt ([24fe044](https://github.com/dsswift/commit/commit/24fe044d6aa461560143c41788013f292474e270))
+
 ## [1.3.0](https://github.com/dsswift/commit/compare/v1.2.0...v1.3.0) (2026-01-31)
 
 
