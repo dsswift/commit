@@ -82,6 +82,11 @@ Example response:
   ]
 }`
 
+	singleCommitRule := ""
+	if req.SingleCommit {
+		singleCommitRule = "\n- IMPORTANT: Create exactly ONE commit containing ALL files"
+	}
+
 	user = fmt.Sprintf(`Analyze these changes and create semantic commits:
 
 FILES:
@@ -97,7 +102,7 @@ RULES:
 - Allowed types: %v
 - Max message length: %d characters
 - Has scopes: %v
-- Behavioral test: %s
+- Behavioral test: %s%s
 
 Return JSON only, no markdown code blocks.`,
 		formatFiles(req.Files),
@@ -107,6 +112,7 @@ Return JSON only, no markdown code blocks.`,
 		req.Rules.MaxMessageLength,
 		req.HasScopes,
 		req.Rules.BehavioralTest,
+		singleCommitRule,
 	)
 
 	return system, user
