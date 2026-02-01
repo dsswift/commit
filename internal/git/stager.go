@@ -110,14 +110,30 @@ func (s *Stager) StageFiles(files []string) error {
 		stagedSet[f] = true
 	}
 
+	// Get renames that may have formed during staging
+	// (when we stage a delete + add of similar files, git auto-detects the rename)
+	postStageRenames, _ := s.getStagedRenames()
+
+	// Build a set of rename sources (old paths that are now part of a rename)
+	renameSources := make(map[string]bool)
+	for oldPath := range postStageRenames {
+		renameSources[oldPath] = true
+	}
+
 	// Verify regular files are staged
 	for _, f := range filesToStage {
 		if !stagedSet[f] {
+			// Check if this file became the source of an auto-detected rename
+			if renameSources[f] {
+				// File was staged as part of a rename - the destination is in stagedSet
+				continue
+			}
 			// Check if file is ignored by git
 			if s.isIgnored(f) {
 				return fmt.Errorf("file is ignored by .gitignore: %s", f)
 			}
-			return fmt.Errorf("file could not be staged (unknown reason): %s", f)
+			// Diagnose why staging failed
+			return fmt.Errorf("file could not be staged: %s\n%s", f, s.diagnoseFile(f))
 		}
 	}
 
@@ -275,6 +291,58 @@ func (s *Stager) HasStagedChanges() (bool, error) {
 		return false, err
 	}
 	return len(files) > 0, nil
+}
+
+// diagnoseFile returns diagnostic information about why a file couldn't be staged.
+func (s *Stager) diagnoseFile(file string) string {
+	var diag []string
+
+	// Check if file exists on disk
+	fullPath := s.fullPath(file)
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		diag = append(diag, "  - file does not exist on disk")
+	} else {
+		diag = append(diag, "  - file exists on disk")
+	}
+
+	// Check if tracked by git
+	if s.isTrackedFile(file) {
+		diag = append(diag, "  - file is tracked by git")
+	} else {
+		diag = append(diag, "  - file is NOT tracked by git")
+	}
+
+	// Check git status for this file
+	cmd := exec.Command("git", "status", "--porcelain", "--", file)
+	cmd.Dir = s.workDir
+	if out, err := cmd.Output(); err == nil {
+		status := strings.TrimSpace(string(out))
+		if status == "" {
+			diag = append(diag, "  - git status: no changes detected for this path")
+		} else {
+			diag = append(diag, fmt.Sprintf("  - git status: %s", status))
+		}
+	}
+
+	// Check if it's involved in a rename
+	renames, _ := s.getStagedRenames()
+	for oldPath, newPath := range renames {
+		if oldPath == file {
+			diag = append(diag, fmt.Sprintf("  - this is the SOURCE of a staged rename -> %s", newPath))
+			diag = append(diag, "  - hint: the LLM included the old filename; the rename is already staged")
+		}
+		if newPath == file {
+			diag = append(diag, fmt.Sprintf("  - this is the DESTINATION of a staged rename <- %s", oldPath))
+		}
+	}
+
+	// List what IS currently staged
+	staged, _ := s.StagedFiles()
+	if len(staged) > 0 {
+		diag = append(diag, fmt.Sprintf("  - currently staged files (%d): %v", len(staged), staged))
+	}
+
+	return strings.Join(diag, "\n")
 }
 
 // getStagedRenames returns a map of old_path -> new_path for staged renames.
