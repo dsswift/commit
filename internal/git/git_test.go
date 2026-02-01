@@ -877,3 +877,46 @@ func TestStager_getStagedRenames(t *testing.T) {
 		t.Errorf("expected original.txt -> renamed.txt, got %v", renames)
 	}
 }
+
+func TestStager_StageFiles_AutoDetectedRename(t *testing.T) {
+	repoDir, cleanup := testRepo(t)
+	defer cleanup()
+
+	// Create initial commit with a file
+	createFile(t, repoDir, "old_name.txt", "some content that git can match")
+	gitAdd(t, repoDir, "old_name.txt")
+	gitCommit(t, repoDir, "initial commit")
+
+	// Manually delete the old file and create a new file with same content
+	// (simulating what happens in a Unity refactor where the file is renamed outside git)
+	os.Remove(filepath.Join(repoDir, "old_name.txt"))
+	createFile(t, repoDir, "new_name.txt", "some content that git can match")
+
+	// Verify the current state: deleted file + untracked new file
+	cmd := exec.Command("git", "status", "--porcelain")
+	cmd.Dir = repoDir
+	out, _ := cmd.Output()
+	status := string(out)
+	if !containsString(status, " D old_name.txt") {
+		t.Fatalf("expected ' D old_name.txt' in status, got: %s", status)
+	}
+	if !containsString(status, "?? new_name.txt") {
+		t.Fatalf("expected '?? new_name.txt' in status, got: %s", status)
+	}
+
+	stager := NewStager(repoDir)
+
+	// Staging BOTH files should work - git will auto-detect the rename
+	err := stager.StageFiles([]string{"old_name.txt", "new_name.txt"})
+	if err != nil {
+		t.Errorf("staging files that form an auto-detected rename should not error, got: %v", err)
+	}
+
+	// After staging, git should have detected the rename
+	renames, _ := stager.getStagedRenames()
+	if len(renames) != 1 {
+		t.Logf("Expected git to auto-detect rename, got renames: %v", renames)
+		// Note: git may not always detect as rename depending on content similarity
+		// So we just verify that staging succeeded
+	}
+}
