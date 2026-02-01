@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.5.0](https://github.com/dsswift/commit/compare/v1.4.0...v1.5.0) (2026-02-01)
+
+
+### Features
+
+* add fresh version check bypassing cache ([a6c340a](https://github.com/dsswift/commit/commit/a6c340a6dd42f3aa2f7b7a3175f2a45692caafca))
+
 ## [1.4.0](https://github.com/dsswift/commit/compare/v1.3.0...v1.4.0) (2026-02-01)
 
 
