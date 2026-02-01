@@ -131,6 +131,7 @@ type flags struct {
 	interactive bool
 	version     bool
 	upgrade     bool
+	single      bool
 	diffFile    string
 	diffFrom    string
 	diffTo      string
@@ -154,6 +155,7 @@ func parseFlags() flags {
 	flag.StringVar(&f.diffFrom, "from", "", "Start ref for diff analysis")
 	flag.StringVar(&f.diffTo, "to", "", "End ref for diff analysis")
 	flag.StringVar(&f.provider, "provider", "", "Override LLM provider")
+	flag.BoolVar(&f.single, "single", false, "Create a single commit for all files")
 
 	flag.Parse()
 
@@ -306,6 +308,9 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 		result.Duration = time.Since(startTime)
 		return result
 	}
+
+	// Set single commit mode
+	analysisReq.SingleCommit = flags.single
 
 	// Log context built
 	if logger != nil {

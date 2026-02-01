@@ -17,6 +17,7 @@ type AnalysisRequest struct {
 	Diff          string       `json:"diff"`
 	RecentCommits []string     `json:"recentCommits"`
 	HasScopes     bool         `json:"hasScopes"`
+	SingleCommit  bool         `json:"singleCommit"`
 	Rules         CommitRules  `json:"rules"`
 }
 
