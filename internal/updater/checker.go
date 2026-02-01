@@ -51,6 +51,16 @@ type GitHubRelease struct {
 // CheckVersion checks if a newer version is available.
 // This function is designed to be called in a goroutine and not block the main execution.
 func CheckVersion(currentVersion string) *VersionInfo {
+	return checkVersion(currentVersion, false)
+}
+
+// CheckVersionFresh checks if a newer version is available, bypassing the cache.
+// Use this for explicit version checks like --version flag.
+func CheckVersionFresh(currentVersion string) *VersionInfo {
+	return checkVersion(currentVersion, true)
+}
+
+func checkVersion(currentVersion string, skipCache bool) *VersionInfo {
 	info := &VersionInfo{
 		CurrentVersion:  currentVersion,
 		UpdateAvailable: false,
@@ -61,13 +71,15 @@ func CheckVersion(currentVersion string) *VersionInfo {
 		return info
 	}
 
-	// Check cache first
-	cached, err := loadCache()
-	if err == nil && time.Since(cached.CheckedAt) < CacheDuration {
-		info.LatestVersion = cached.LatestVersion
-		info.ReleaseURL = cached.ReleaseURL
-		info.UpdateAvailable = isNewerVersion(cached.LatestVersion, currentVersion)
-		return info
+	// Check cache first (unless skipping)
+	if !skipCache {
+		cached, err := loadCache()
+		if err == nil && time.Since(cached.CheckedAt) < CacheDuration {
+			info.LatestVersion = cached.LatestVersion
+			info.ReleaseURL = cached.ReleaseURL
+			info.UpdateAvailable = isNewerVersion(cached.LatestVersion, currentVersion)
+			return info
+		}
 	}
 
 	// Fetch from GitHub

@@ -34,6 +34,11 @@ func run() int {
 	// Handle special flags
 	if flags.version {
 		fmt.Printf("commit version %s\n", Version)
+		// Always check for updates (bypass cache)
+		versionInfo := updater.CheckVersionFresh(Version)
+		if notice := updater.FormatUpdateNotice(versionInfo); notice != "" {
+			fmt.Print(notice)
+		}
 		return 0
 	}
 

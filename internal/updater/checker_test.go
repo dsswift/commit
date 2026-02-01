@@ -201,6 +201,39 @@ func TestCheckVersion_ExpiredCache(t *testing.T) {
 	}
 }
 
+func TestCheckVersionFresh_BypassesCache(t *testing.T) {
+	origHome := os.Getenv("HOME")
+	tmpDir, _ := os.MkdirTemp("", "updater-test-*")
+	defer os.RemoveAll(tmpDir)
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	// Create config directory and fresh cache
+	configDir := filepath.Join(tmpDir, ".commit-tool")
+	os.MkdirAll(configDir, 0700)
+
+	cache := &VersionCache{
+		CheckedAt:     time.Now(), // Recent cache - would normally be used
+		LatestVersion: "v2.0.0",
+		ReleaseURL:    "https://example.com",
+	}
+	saveCache(cache)
+
+	// CheckVersionFresh should bypass the cache and try to fetch
+	// (will fail since no network mock, so LatestVersion will be empty)
+	info := CheckVersionFresh("v1.0.0")
+
+	// Should NOT use cached version - proves cache was bypassed
+	if info.LatestVersion == "v2.0.0" {
+		t.Error("CheckVersionFresh should bypass cache, but used cached version")
+	}
+
+	// Current version should still be set
+	if info.CurrentVersion != "v1.0.0" {
+		t.Errorf("expected current version v1.0.0, got %q", info.CurrentVersion)
+	}
+}
+
 func containsString(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {
