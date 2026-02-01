@@ -26,9 +26,26 @@ func (s *Stager) StageFiles(files []string) error {
 	// PRECONDITIONS
 	assert.NotEmpty(files, "files cannot be empty")
 
+	// Get staged renames to handle rename sources correctly
+	stagedRenames, err := s.getStagedRenames()
+	if err != nil {
+		return fmt.Errorf("failed to check staged renames: %w", err)
+	}
+
+	// Track which files are rename sources (already staged via the rename)
+	renameSourcesRequested := make(map[string]string) // old_path -> new_path
+
 	// Expand directories to their contained files
 	var filesToStage []string
 	for _, f := range files {
+		// Check if this file is the source of a staged rename
+		if newPath, isRenameSource := stagedRenames[f]; isRenameSource {
+			// Skip staging - the rename is already staged
+			// Track it for postcondition verification
+			renameSourcesRequested[f] = newPath
+			continue
+		}
+
 		fullPath := s.fullPath(f)
 		info, err := os.Stat(fullPath)
 		if os.IsNotExist(err) {
@@ -52,8 +69,24 @@ func (s *Stager) StageFiles(files []string) error {
 		}
 	}
 
-	// If all paths were empty directories, nothing to stage
+	// If all paths were empty directories or rename sources, nothing more to stage
 	if len(filesToStage) == 0 {
+		// Still verify rename sources are staged (via their destinations)
+		if len(renameSourcesRequested) > 0 {
+			staged, err := s.StagedFiles()
+			if err != nil {
+				return fmt.Errorf("failed to verify staging: %w", err)
+			}
+			stagedSet := make(map[string]bool)
+			for _, f := range staged {
+				stagedSet[f] = true
+			}
+			for oldPath, newPath := range renameSourcesRequested {
+				if !stagedSet[newPath] {
+					return fmt.Errorf("rename destination not staged: %s -> %s", oldPath, newPath)
+				}
+			}
+		}
 		return nil
 	}
 
@@ -77,6 +110,7 @@ func (s *Stager) StageFiles(files []string) error {
 		stagedSet[f] = true
 	}
 
+	// Verify regular files are staged
 	for _, f := range filesToStage {
 		if !stagedSet[f] {
 			// Check if file is ignored by git
@@ -84,6 +118,13 @@ func (s *Stager) StageFiles(files []string) error {
 				return fmt.Errorf("file is ignored by .gitignore: %s", f)
 			}
 			return fmt.Errorf("file could not be staged (unknown reason): %s", f)
+		}
+	}
+
+	// Verify rename sources are staged (via their destinations)
+	for oldPath, newPath := range renameSourcesRequested {
+		if !stagedSet[newPath] {
+			return fmt.Errorf("rename destination not staged: %s -> %s", oldPath, newPath)
 		}
 	}
 
@@ -234,4 +275,37 @@ func (s *Stager) HasStagedChanges() (bool, error) {
 		return false, err
 	}
 	return len(files) > 0, nil
+}
+
+// getStagedRenames returns a map of old_path -> new_path for staged renames.
+func (s *Stager) getStagedRenames() (map[string]string, error) {
+	cmd := exec.Command("git", "status", "--porcelain")
+	cmd.Dir = s.workDir
+
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get git status: %w", err)
+	}
+
+	renames := make(map[string]string)
+	for _, line := range strings.Split(string(out), "\n") {
+		if len(line) < 3 {
+			continue
+		}
+		// Porcelain format: XY filename
+		// X = index status, R means rename staged
+		indexStatus := line[0]
+		if indexStatus == 'R' {
+			// Format: "R  old_path -> new_path"
+			filename := strings.TrimSpace(line[3:])
+			if strings.Contains(filename, " -> ") {
+				parts := strings.Split(filename, " -> ")
+				if len(parts) == 2 {
+					renames[parts[0]] = parts[1]
+				}
+			}
+		}
+	}
+
+	return renames, nil
 }
