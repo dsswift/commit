@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.7.0](https://github.com/dsswift/commit/compare/v1.6.0...v1.7.0) (2026-02-01)
+
+
+### Features
+
+* handle git auto-detected renames in stager ([3f4a415](https://github.com/dsswift/commit/commit/3f4a4152fca515c8cb4ea2d943261cb8be90b142))
+* merge overlapping commits in validator ([b30dd1c](https://github.com/dsswift/commit/commit/b30dd1cca997f2bf77e70102998f79bda39a6965))
+
 ## [1.6.0](https://github.com/dsswift/commit/compare/v1.5.0...v1.6.0) (2026-02-01)
 
 
