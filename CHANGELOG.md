@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.6.0](https://github.com/dsswift/commit/compare/v1.5.0...v1.6.0) (2026-02-01)
+
+
+### Features
+
+* handle git rename sources when staging ([6c95b21](https://github.com/dsswift/commit/commit/6c95b212f2d137bffd82787405e45eee5cc9e690))
+
 ## [1.5.0](https://github.com/dsswift/commit/compare/v1.4.0...v1.5.0) (2026-02-01)
 
 
