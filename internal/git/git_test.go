@@ -777,3 +777,103 @@ func TestStager_StageFiles_NestedDirectory(t *testing.T) {
 		t.Errorf("expected 2 staged files, got %d: %v", len(staged), staged)
 	}
 }
+
+func TestStager_StageFiles_RenameSource(t *testing.T) {
+	repoDir, cleanup := testRepo(t)
+	defer cleanup()
+
+	// Create initial commit with a file
+	createFile(t, repoDir, "old_name.txt", "content")
+	gitAdd(t, repoDir, "old_name.txt")
+	gitCommit(t, repoDir, "initial commit")
+
+	// Rename the file using git mv (stages the rename)
+	cmd := exec.Command("git", "mv", "old_name.txt", "new_name.txt")
+	cmd.Dir = repoDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git mv failed: %s: %v", string(out), err)
+	}
+
+	stager := NewStager(repoDir)
+
+	// Trying to stage the OLD name should succeed (the rename is already staged)
+	err := stager.StageFiles([]string{"old_name.txt"})
+	if err != nil {
+		t.Errorf("staging rename source should not error, got: %v", err)
+	}
+
+	// The new name should be in staged files
+	staged, _ := stager.StagedFiles()
+	if len(staged) != 1 {
+		t.Errorf("expected 1 staged file, got %d: %v", len(staged), staged)
+	}
+	if len(staged) > 0 && staged[0] != "new_name.txt" {
+		t.Errorf("expected 'new_name.txt' to be staged, got %q", staged[0])
+	}
+}
+
+func TestStager_StageFiles_RenameSourceWithOtherFiles(t *testing.T) {
+	repoDir, cleanup := testRepo(t)
+	defer cleanup()
+
+	// Create initial commit with files
+	createFile(t, repoDir, "old_name.txt", "content")
+	createFile(t, repoDir, "other.txt", "other content")
+	gitAdd(t, repoDir, "old_name.txt", "other.txt")
+	gitCommit(t, repoDir, "initial commit")
+
+	// Rename one file using git mv
+	cmd := exec.Command("git", "mv", "old_name.txt", "new_name.txt")
+	cmd.Dir = repoDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git mv failed: %s: %v", string(out), err)
+	}
+
+	// Modify the other file (not staged yet)
+	createFile(t, repoDir, "other.txt", "modified content")
+
+	stager := NewStager(repoDir)
+
+	// Staging both the old rename source AND the modified file should work
+	err := stager.StageFiles([]string{"old_name.txt", "other.txt"})
+	if err != nil {
+		t.Errorf("staging rename source with other files should not error, got: %v", err)
+	}
+
+	// Both files should be staged (new_name.txt from rename, other.txt from add)
+	staged, _ := stager.StagedFiles()
+	if len(staged) != 2 {
+		t.Errorf("expected 2 staged files, got %d: %v", len(staged), staged)
+	}
+}
+
+func TestStager_getStagedRenames(t *testing.T) {
+	repoDir, cleanup := testRepo(t)
+	defer cleanup()
+
+	// Create initial commit with a file
+	createFile(t, repoDir, "original.txt", "content")
+	gitAdd(t, repoDir, "original.txt")
+	gitCommit(t, repoDir, "initial commit")
+
+	// Rename the file using git mv
+	cmd := exec.Command("git", "mv", "original.txt", "renamed.txt")
+	cmd.Dir = repoDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git mv failed: %s: %v", string(out), err)
+	}
+
+	stager := NewStager(repoDir)
+	renames, err := stager.getStagedRenames()
+	if err != nil {
+		t.Fatalf("getStagedRenames failed: %v", err)
+	}
+
+	if len(renames) != 1 {
+		t.Errorf("expected 1 rename, got %d: %v", len(renames), renames)
+	}
+
+	if newPath, ok := renames["original.txt"]; !ok || newPath != "renamed.txt" {
+		t.Errorf("expected original.txt -> renamed.txt, got %v", renames)
+	}
+}
