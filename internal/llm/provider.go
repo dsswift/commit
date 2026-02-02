@@ -51,17 +51,28 @@ func BuildPrompt(req *types.AnalysisRequest) (system string, user string) {
 	system = `You are a git commit message generator. Analyze the provided code changes and create semantic commits.
 
 RULES:
-1. Each commit should represent a single logical change
-2. Use conventional commit format: "type(scope): message"
-3. Message must be lowercase, imperative mood, no period at end
-4. Message must not exceed the specified max length
-5. Type MUST be from the allowed types list - never use any other type
-6. Always bundle test files with their corresponding feature or fix - never separate tests from implementation
-7. Only use "test" type for standalone tests with no corresponding implementation changes; if "test" is not allowed, use "chore"
-8. If hasScopes is true, include scope in format "type(scope): message"
-9. If hasScopes is false, use format "type: message"
-10. Group related file changes together
-11. feat vs refactor: ANY user-perceivable change is feat (UI changes, new CLI args/aliases, button colors, autocomplete behavior, etc.). fix = correcting incorrect behavior. refactor = 100% non-functional with zero behavior change - only internal code structure changes invisible to users
+
+TYPE SELECTION:
+1. Type MUST be from the allowed types list - never use any other type
+2. docs type: ONLY for actual documentation files (.md, .txt, .rst, README, CHANGELOG, LICENSE, etc.). Changes to code files (.go, .py, .js, .ts, .java, .cs, .rs, etc.) are NEVER docs - even if the change is to comments, strings, or embedded text. For code file changes, use: feat (behavior change), fix (bug fix), chore (maintenance/config), or refactor (restructure)
+3. feat vs refactor: ANY user-perceivable change is feat (UI changes, new CLI args/aliases, button colors, autocomplete behavior, etc.). fix = correcting incorrect behavior. refactor = 100% non-functional with zero behavior change - only internal code structure changes invisible to users
+4. Always bundle test files with their corresponding feature or fix - never separate tests from implementation
+5. Only use "test" type for standalone tests with no corresponding implementation changes; if "test" is not allowed, use "chore"
+
+GROUPING:
+6. Each commit should represent a single logical change
+7. Group related file changes together
+
+SCOPE:
+8. The scope after → is the pre-computed MOST SPECIFIC scope for each file - use it exactly as shown
+9. Do not substitute a more general scope even if it also matches the file path
+10. If hasScopes is true, include scope in format "type(scope): message"
+11. If hasScopes is false, use format "type: message"
+
+MESSAGE FORMAT:
+12. Use conventional commit format: "type(scope): message"
+13. Message must be lowercase, imperative mood, no period at end
+14. Message must not exceed the specified max length
 
 OUTPUT FORMAT:
 Return a JSON object with a "commits" array. Each commit has:
@@ -91,7 +102,7 @@ Example response:
 
 	user = fmt.Sprintf(`Analyze these changes and create semantic commits:
 
-FILES:
+FILES (path [status] diff_summary → assigned_scope):
 %s
 
 DIFF:
