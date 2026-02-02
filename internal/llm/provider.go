@@ -52,18 +52,20 @@ func BuildPrompt(req *types.AnalysisRequest) (system string, user string) {
 
 RULES:
 1. Each commit should represent a single logical change
-2. Use conventional commit format: type(scope): message
+2. Use conventional commit format: "type(scope): message"
 3. Message must be lowercase, imperative mood, no period at end
 4. Message must not exceed the specified max length
-5. Type must be one of the allowed types
-6. If hasScopes is true, include scope in format type(scope): message
-7. If hasScopes is false, use format type: message
-8. Group related file changes together
-9. feat = changes behavior/output, refactor = same behavior different structure
+5. Type MUST be from the allowed types list - never use any other type
+6. Always bundle test files with their corresponding feature or fix - never separate tests from implementation
+7. Only use "test" type for standalone tests with no corresponding implementation changes; if "test" is not allowed, use "chore"
+8. If hasScopes is true, include scope in format "type(scope): message"
+9. If hasScopes is false, use format "type: message"
+10. Group related file changes together
+11. feat vs refactor: ANY user-perceivable change is feat (UI changes, new CLI args/aliases, button colors, autocomplete behavior, etc.). fix = correcting incorrect behavior. refactor = 100% non-functional with zero behavior change - only internal code structure changes invisible to users
 
 OUTPUT FORMAT:
 Return a JSON object with a "commits" array. Each commit has:
-- type: commit type (feat, fix, docs, etc.)
+- type: commit type (ONLY use types from the allowed list)
 - scope: scope name or null if no scope
 - message: the commit message (without type/scope prefix)
 - files: array of file paths included in this commit
@@ -99,7 +101,7 @@ RECENT COMMITS (for style reference):
 %s
 
 RULES:
-- Allowed types: %v
+- Allowed types (ONLY use these, no other types): %v
 - Max message length: %d characters
 - Has scopes: %v
 - Behavioral test: %s%s
