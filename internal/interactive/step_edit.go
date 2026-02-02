@@ -116,6 +116,7 @@ func (m *EditModel) updateMessageEdit(msg tea.Msg) (*EditModel, tea.Cmd) {
 			if newMsg != "" {
 				m.entries[m.editingIndex].NewMessage = newMsg
 				m.entries[m.editingIndex].MessageEdited = true
+				m.entries[m.editingIndex].Operation = OpReword
 			}
 			m.editingMessage = false
 			return m, nil

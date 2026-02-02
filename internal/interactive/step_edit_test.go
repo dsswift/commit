@@ -246,6 +246,29 @@ func TestEditModel_MessageEdited_Flag(t *testing.T) {
 	}
 }
 
+func TestEditModel_MessageEdit_SetsRewordOperation(t *testing.T) {
+	entries := makeTestEntries()
+	model := NewEditModel(entries, DefaultStyles(), DefaultKeyMap())
+	model.cursor = 0
+
+	// Initially operation is pick
+	if model.entries[0].Operation != OpPick {
+		t.Fatalf("initial operation = %v, want OpPick", model.entries[0].Operation)
+	}
+
+	// Start editing
+	model.startMessageEdit()
+
+	// Simulate setting a value and pressing enter
+	model.messageInput.SetValue("new commit message")
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Operation should be set to reword
+	if model.entries[0].Operation != OpReword {
+		t.Errorf("Operation = %v, want OpReword after editing message", model.entries[0].Operation)
+	}
+}
+
 func TestEditModel_Entries(t *testing.T) {
 	entries := makeTestEntries()
 	model := NewEditModel(entries, DefaultStyles(), DefaultKeyMap())
