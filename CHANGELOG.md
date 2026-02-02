@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.8.0](https://github.com/dsswift/commit/compare/v1.7.0...v1.8.0) (2026-02-02)
+
+
+### Features
+
+* add default mode config and --set flag ([216e710](https://github.com/dsswift/commit/commit/216e7107631e4fbc5376b9d13595c15107e3c6c9))
+
 ## [1.7.0](https://github.com/dsswift/commit/compare/v1.6.0...v1.7.0) (2026-02-01)
 
 
