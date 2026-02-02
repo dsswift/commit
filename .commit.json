@@ -1,0 +1,6 @@
+{
+  "commitTypes": {
+    "mode": "whitelist",
+    "types": ["feat!", "feat", "fix", "chore", "docs"]
+  }
+}
