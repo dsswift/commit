@@ -119,22 +119,15 @@ cat "%s" > "$1"
 }
 
 // createRewordScript creates a script that handles reword message editing.
+// Uses a counter-based approach: git processes commits in todo order, so the
+// Nth editor invocation corresponds to the Nth reword entry with a custom message.
 func (r *Rebaser) createRewordScript(entries []RebaseEntry) (string, func(), error) {
-	// Collect all entries that need reword with custom messages
-	var rewordMsgs []struct {
-		hash    string
-		message string
-	}
+	// Collect only reword entries with custom messages
+	var rewordMsgs []string
 
 	for _, entry := range entries {
-		if entry.NewMessage != "" {
-			rewordMsgs = append(rewordMsgs, struct {
-				hash    string
-				message string
-			}{
-				hash:    entry.Commit.ShortHash,
-				message: entry.NewMessage,
-			})
+		if entry.Operation == OpReword && entry.NewMessage != "" {
+			rewordMsgs = append(rewordMsgs, entry.NewMessage)
 		}
 	}
 
@@ -153,32 +146,36 @@ func (r *Rebaser) createRewordScript(entries []RebaseEntry) (string, func(), err
 	}
 
 	// Write message files
-	for i, rm := range rewordMsgs {
+	for i, msg := range rewordMsgs {
 		msgPath := filepath.Join(tmpDir, fmt.Sprintf("msg_%d.txt", i))
-		if err := os.WriteFile(msgPath, []byte(rm.message), 0644); err != nil {
+		if err := os.WriteFile(msgPath, []byte(msg), 0644); err != nil {
 			cleanup()
 			return "", func() {}, err
 		}
 	}
 
-	// Create a script that writes the appropriate message
-	// The script checks which commit is being edited and writes the corresponding message
-	var scriptLines []string
-	scriptLines = append(scriptLines, "#!/bin/sh")
-	scriptLines = append(scriptLines, "# Check current commit being rebased")
-	scriptLines = append(scriptLines, "CURRENT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo '')")
-
-	for i, rm := range rewordMsgs {
-		msgPath := filepath.Join(tmpDir, fmt.Sprintf("msg_%d.txt", i))
-		// Check if current commit starts with the short hash
-		scriptLines = append(scriptLines, fmt.Sprintf(`if echo "$CURRENT_COMMIT" | grep -q "^%s"; then`, rm.hash))
-		scriptLines = append(scriptLines, fmt.Sprintf(`  cat "%s" > "$1"`, msgPath))
-		scriptLines = append(scriptLines, "  exit 0")
-		scriptLines = append(scriptLines, "fi")
+	// Write counter file initialized to 0
+	counterPath := filepath.Join(tmpDir, "counter")
+	if err := os.WriteFile(counterPath, []byte("0"), 0644); err != nil {
+		cleanup()
+		return "", func() {}, err
 	}
 
-	// If no match, leave the file as-is (for initial squash message combining)
-	scriptLines = append(scriptLines, "exit 0")
+	// Create a script that uses a counter to select the correct message file.
+	// Each invocation increments the counter and uses it to pick the message.
+	var scriptLines []string
+	scriptLines = append(scriptLines, "#!/bin/sh")
+	scriptLines = append(scriptLines, fmt.Sprintf(`COUNTER_FILE="%s"`, counterPath))
+	scriptLines = append(scriptLines, `N=$(cat "$COUNTER_FILE")`)
+	scriptLines = append(scriptLines, `echo $((N + 1)) > "$COUNTER_FILE"`)
+	scriptLines = append(scriptLines, "case $N in")
+
+	for i := range rewordMsgs {
+		msgPath := filepath.Join(tmpDir, fmt.Sprintf("msg_%d.txt", i))
+		scriptLines = append(scriptLines, fmt.Sprintf(`  %d) cat "%s" > "$1" ;;`, i, msgPath))
+	}
+
+	scriptLines = append(scriptLines, "esac")
 
 	scriptContent := strings.Join(scriptLines, "\n") + "\n"
 	scriptPath := filepath.Join(tmpDir, "editor.sh")

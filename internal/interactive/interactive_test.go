@@ -442,3 +442,135 @@ func TestRebaser_Execute_RootCommit(t *testing.T) {
 		t.Fatalf("expected 2 commits, got %d: %v", len(messages), messages)
 	}
 }
+
+func TestRebaser_Execute_MultipleRewords(t *testing.T) {
+	repoDir, cleanup := testRepo(t)
+	defer cleanup()
+
+	// Create base commit
+	createFile(t, repoDir, "base.txt", "base")
+	gitAdd(t, repoDir, "base.txt")
+	baseHash := gitCommit(t, repoDir, "base")
+
+	// Create multiple commits to reword
+	createFile(t, repoDir, "a.txt", "a")
+	gitAdd(t, repoDir, "a.txt")
+	gitCommit(t, repoDir, "old message A")
+
+	createFile(t, repoDir, "b.txt", "b")
+	gitAdd(t, repoDir, "b.txt")
+	gitCommit(t, repoDir, "old message B")
+
+	createFile(t, repoDir, "c.txt", "c")
+	gitAdd(t, repoDir, "c.txt")
+	gitCommit(t, repoDir, "old message C")
+
+	// Reword all commits with new messages
+	entries := []RebaseEntry{
+		{
+			Commit:        RebaseCommit{ShortHash: getShortHash(t, repoDir, "HEAD~2"), Message: "old message A"},
+			Operation:     OpReword,
+			NewMessage:    "new message A",
+			MessageEdited: true,
+		},
+		{
+			Commit:        RebaseCommit{ShortHash: getShortHash(t, repoDir, "HEAD~1"), Message: "old message B"},
+			Operation:     OpReword,
+			NewMessage:    "new message B",
+			MessageEdited: true,
+		},
+		{
+			Commit:        RebaseCommit{ShortHash: getShortHash(t, repoDir, "HEAD"), Message: "old message C"},
+			Operation:     OpReword,
+			NewMessage:    "new message C",
+			MessageEdited: true,
+		},
+	}
+
+	rebaser := NewRebaser(repoDir)
+	err := rebaser.Execute(entries, baseHash)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	// Verify all messages changed correctly
+	messages := getCommitMessages(t, repoDir)
+	expected := []string{"base", "new message A", "new message B", "new message C"}
+	if len(messages) != len(expected) {
+		t.Fatalf("expected %d commits, got %d: %v", len(expected), len(messages), messages)
+	}
+	for i, msg := range messages {
+		if msg != expected[i] {
+			t.Errorf("commit %d: got %q, want %q", i, msg, expected[i])
+		}
+	}
+}
+
+func TestRebaser_Execute_MixedOperationsWithReword(t *testing.T) {
+	repoDir, cleanup := testRepo(t)
+	defer cleanup()
+
+	// Create base commit
+	createFile(t, repoDir, "base.txt", "base")
+	gitAdd(t, repoDir, "base.txt")
+	baseHash := gitCommit(t, repoDir, "base")
+
+	// Create commits with mixed operations
+	createFile(t, repoDir, "a.txt", "a")
+	gitAdd(t, repoDir, "a.txt")
+	gitCommit(t, repoDir, "pick this")
+
+	createFile(t, repoDir, "b.txt", "b")
+	gitAdd(t, repoDir, "b.txt")
+	gitCommit(t, repoDir, "reword this")
+
+	createFile(t, repoDir, "c.txt", "c")
+	gitAdd(t, repoDir, "c.txt")
+	gitCommit(t, repoDir, "also reword")
+
+	createFile(t, repoDir, "d.txt", "d")
+	gitAdd(t, repoDir, "d.txt")
+	gitCommit(t, repoDir, "pick this too")
+
+	// Mix of pick and reword operations
+	entries := []RebaseEntry{
+		{
+			Commit:    RebaseCommit{ShortHash: getShortHash(t, repoDir, "HEAD~3"), Message: "pick this"},
+			Operation: OpPick,
+		},
+		{
+			Commit:        RebaseCommit{ShortHash: getShortHash(t, repoDir, "HEAD~2"), Message: "reword this"},
+			Operation:     OpReword,
+			NewMessage:    "reworded first",
+			MessageEdited: true,
+		},
+		{
+			Commit:        RebaseCommit{ShortHash: getShortHash(t, repoDir, "HEAD~1"), Message: "also reword"},
+			Operation:     OpReword,
+			NewMessage:    "reworded second",
+			MessageEdited: true,
+		},
+		{
+			Commit:    RebaseCommit{ShortHash: getShortHash(t, repoDir, "HEAD"), Message: "pick this too"},
+			Operation: OpPick,
+		},
+	}
+
+	rebaser := NewRebaser(repoDir)
+	err := rebaser.Execute(entries, baseHash)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	// Verify messages
+	messages := getCommitMessages(t, repoDir)
+	expected := []string{"base", "pick this", "reworded first", "reworded second", "pick this too"}
+	if len(messages) != len(expected) {
+		t.Fatalf("expected %d commits, got %d: %v", len(expected), len(messages), messages)
+	}
+	for i, msg := range messages {
+		if msg != expected[i] {
+			t.Errorf("commit %d: got %q, want %q", i, msg, expected[i])
+		}
+	}
+}
