@@ -1,7 +1,8 @@
 # Makefile for commit tool
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-LDFLAGS := -ldflags "-X main.Version=$(VERSION)"
+BUILD_TIME := $(shell date +%Y%m%d-%H%M)
+LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
 
 .PHONY: all build build-all clean test lint install
 

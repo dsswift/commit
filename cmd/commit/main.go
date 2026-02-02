@@ -23,6 +23,9 @@ import (
 // Version is set at build time via ldflags.
 var Version = "dev"
 
+// BuildTime is set at build time via ldflags (format: YYYYMMDD-HHMM).
+var BuildTime = ""
+
 func main() {
 	os.Exit(run())
 }
@@ -33,7 +36,11 @@ func run() int {
 
 	// Handle special flags
 	if flags.version {
-		fmt.Printf("commit version %s\n", Version)
+		displayVersion := Version
+		if Version == "dev" && BuildTime != "" {
+			displayVersion = fmt.Sprintf("dev-%s", BuildTime)
+		}
+		fmt.Printf("commit version %s\n", displayVersion)
 		// Always check for updates (bypass cache)
 		versionInfo := updater.CheckVersionFresh(Version)
 		if notice := updater.FormatUpdateNotice(versionInfo); notice != "" {

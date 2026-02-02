@@ -67,7 +67,7 @@ func checkVersion(currentVersion string, skipCache bool) *VersionInfo {
 	}
 
 	// Don't check for dev builds
-	if currentVersion == "dev" || currentVersion == "" {
+	if currentVersion == "" || currentVersion == "dev" || strings.HasPrefix(currentVersion, "dev-") {
 		return info
 	}
 
