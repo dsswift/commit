@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.10.0](https://github.com/dsswift/commit/compare/v1.9.0...v1.10.0) (2026-02-02)
+
+
+### Features
+
+* add step edit error wrapping ([a7afeec](https://github.com/dsswift/commit/commit/a7afeecc4b993041045605819359d364f2083db4))
+* improve commit type selection guidelines ([0c1d223](https://github.com/dsswift/commit/commit/0c1d223fffd2bacb12990e54ffa1c6db40d63e0e))
+* show build time in dev version output ([a922803](https://github.com/dsswift/commit/commit/a92280346e09902ee25a39379a034117c7b5eec4))
+
+
+### Bug Fixes
+
+* handle multiple reword operations in rebase ([223a58a](https://github.com/dsswift/commit/commit/223a58afb155237d55e82a9c671f80ab81f63f02))
+* improve llm provider error handling ([21e7767](https://github.com/dsswift/commit/commit/21e7767df093cc957710547fef6681833f86bbf7))
+
 ## [1.9.0](https://github.com/dsswift/commit/compare/v1.8.1...v1.9.0) (2026-02-02)
 
 
