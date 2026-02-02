@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.8.1](https://github.com/dsswift/commit/compare/v1.8.0...v1.8.1) (2026-02-02)
+
+
+### Bug Fixes
+
+* deduplicate scope names in output display ([c20b20f](https://github.com/dsswift/commit/commit/c20b20f04cdf9ded237ad8a77c1303d67fffaa59))
+
 ## [1.8.0](https://github.com/dsswift/commit/compare/v1.7.0...v1.8.0) (2026-02-02)
 
 
