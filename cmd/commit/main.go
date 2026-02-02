@@ -251,11 +251,15 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 
 	printSuccess(fmt.Sprintf("Provider: %s", userConfig.Provider))
 	if len(repoConfig.Scopes) > 0 {
+		seen := make(map[string]bool)
 		var scopeNames []string
 		for _, s := range repoConfig.Scopes {
-			scopeNames = append(scopeNames, s.Scope)
+			if !seen[s.Scope] {
+				seen[s.Scope] = true
+				scopeNames = append(scopeNames, s.Scope)
+			}
 		}
-		printSuccess(fmt.Sprintf("Scopes: %s (from .commit.json)", strings.Join(scopeNames, ", ")))
+		printSuccess(fmt.Sprintf("Scopes (from .commit.json): %s", strings.Join(scopeNames, ", ")))
 	}
 
 	// Collect git changes
