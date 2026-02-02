@@ -408,3 +408,37 @@ func TestPushedCommitError(t *testing.T) {
 		t.Errorf("error should mention 'force', got: %s", msg)
 	}
 }
+
+func TestRebaser_Execute_RootCommit(t *testing.T) {
+	repoDir, cleanup := testRepo(t)
+	defer cleanup()
+
+	// Create initial commit
+	createFile(t, repoDir, "file.txt", "initial")
+	gitAdd(t, repoDir, "file.txt")
+	gitCommit(t, repoDir, "initial commit")
+
+	// Create second commit to reword
+	createFile(t, repoDir, "file.txt", "updated")
+	gitAdd(t, repoDir, "file.txt")
+	gitCommit(t, repoDir, "second commit")
+
+	// Rebase both commits with --root (empty baseCommit)
+	entries := []RebaseEntry{
+		{Commit: RebaseCommit{ShortHash: getShortHash(t, repoDir, "HEAD~1"), Message: "initial commit"}, Operation: OpPick},
+		{Commit: RebaseCommit{ShortHash: getShortHash(t, repoDir, "HEAD"), Message: "second commit"}, Operation: OpPick},
+	}
+
+	rebaser := NewRebaser(repoDir)
+	err := rebaser.Execute(entries, "") // empty baseCommit triggers --root
+
+	if err != nil {
+		t.Fatalf("Execute with root failed: %v", err)
+	}
+
+	// Verify both commits still exist
+	messages := getCommitMessages(t, repoDir)
+	if len(messages) != 2 {
+		t.Fatalf("expected 2 commits, got %d: %v", len(messages), messages)
+	}
+}

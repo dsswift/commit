@@ -42,7 +42,13 @@ func (r *Rebaser) Execute(entries []RebaseEntry, baseCommit string) error {
 	defer rewordCleanup()
 
 	// Run git rebase
-	cmd := exec.Command("git", "rebase", "-i", baseCommit)
+	var cmd *exec.Cmd
+	if baseCommit == "" {
+		// Root commit selected - use --root flag
+		cmd = exec.Command("git", "rebase", "-i", "--root")
+	} else {
+		cmd = exec.Command("git", "rebase", "-i", baseCommit)
+	}
 	cmd.Dir = r.workDir
 	cmd.Env = append(os.Environ(),
 		"GIT_SEQUENCE_EDITOR="+scriptPath,

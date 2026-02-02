@@ -2,6 +2,8 @@ package interactive
 
 import (
 	"fmt"
+	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -137,23 +139,44 @@ func (m *SelectModel) selectCommit() tea.Cmd {
 	selectedIdx := m.cursor
 	selectedCommit := m.commits[selectedIdx]
 
-	// All commits BEFORE the selected one will be rebased
-	// (commits are in reverse chronological order, so index 0 is most recent)
-	// We need commits from index 0 to selectedIdx-1
+	// Include selected commit and all commits before it (newer commits)
+	// Commits are in reverse chronological order, so index 0 is most recent
 	var entries []RebaseEntry
-	for i := selectedIdx - 1; i >= 0; i-- {
+	for i := selectedIdx; i >= 0; i-- {
 		entries = append(entries, RebaseEntry{
 			Commit:    m.commits[i],
 			Operation: OpPick,
 		})
 	}
 
+	// Get the base commit (parent of selected commit)
+	var baseCommit string
+	if selectedIdx+1 < len(m.commits) {
+		// Parent is available in our loaded list
+		baseCommit = m.commits[selectedIdx+1].Hash
+	} else {
+		// Need to look up the parent via git
+		baseCommit = m.getParentHash(selectedCommit.Hash)
+	}
+
 	return func() tea.Msg {
 		return SelectDoneMsg{
-			BaseCommit: selectedCommit.Hash,
+			BaseCommit: baseCommit,
 			Entries:    entries,
 		}
 	}
+}
+
+// getParentHash returns the parent commit hash for the given commit.
+// Returns empty string if the commit has no parent (root commit).
+func (m *SelectModel) getParentHash(hash string) string {
+	cmd := exec.Command("git", "rev-parse", hash+"^")
+	out, err := cmd.Output()
+	if err != nil {
+		// No parent (root commit) or invalid ref
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // View renders the commit selection view.
@@ -167,8 +190,8 @@ func (m *SelectModel) View() string {
 	}
 
 	var s string
-	s += m.styles.Title.Render("Which commit should the rebase start from?") + "\n"
-	s += m.styles.Subtle.Render("All commits AFTER this one will be included in the rebase.") + "\n\n"
+	s += m.styles.Title.Render("Select the oldest commit to include in the rebase.") + "\n"
+	s += m.styles.Subtle.Render("This commit and all newer commits will be rebased.") + "\n\n"
 
 	for i, commit := range m.commits {
 		cursor := "  "
