@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.9.0](https://github.com/dsswift/commit/compare/v1.8.1...v1.9.0) (2026-02-02)
+
+
+### Features
+
+* support rebasing root commit with --root flag ([255af24](https://github.com/dsswift/commit/commit/255af24db5cd614e857857fbdedd3e5fcd24cc93))
+
 ### [1.8.1](https://github.com/dsswift/commit/compare/v1.8.0...v1.8.1) (2026-02-02)
 
 
