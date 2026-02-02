@@ -299,6 +299,139 @@ func TestCreateDefaultConfig_DoesNotOverwrite(t *testing.T) {
 	}
 }
 
+func TestLoadUserConfig_DefaultMode(t *testing.T) {
+	origHome := os.Getenv("HOME")
+	tmpDir, _ := os.MkdirTemp("", "config-test-*")
+	defer os.RemoveAll(tmpDir)
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	tests := []struct {
+		name         string
+		envContent   string
+		expectedMode string
+		expectError  bool
+	}{
+		{
+			name: "smart mode",
+			envContent: `COMMIT_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-test
+COMMIT_DEFAULT_MODE=smart`,
+			expectedMode: "smart",
+			expectError:  false,
+		},
+		{
+			name: "single mode",
+			envContent: `COMMIT_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-test
+COMMIT_DEFAULT_MODE=single`,
+			expectedMode: "single",
+			expectError:  false,
+		},
+		{
+			name: "empty mode (default)",
+			envContent: `COMMIT_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-test`,
+			expectedMode: "",
+			expectError:  false,
+		},
+		{
+			name: "invalid mode",
+			envContent: `COMMIT_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-test
+COMMIT_DEFAULT_MODE=invalid`,
+			expectedMode: "",
+			expectError:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configDir := filepath.Join(tmpDir, ConfigDir)
+			os.MkdirAll(configDir, 0700)
+			os.WriteFile(filepath.Join(configDir, EnvFile), []byte(tt.envContent), 0600)
+
+			config, err := LoadUserConfig()
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("expected error but got nil")
+				}
+				if _, ok := err.(*InvalidDefaultModeError); !ok {
+					t.Errorf("expected InvalidDefaultModeError, got %T: %v", err, err)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if config.DefaultMode != tt.expectedMode {
+					t.Errorf("expected DefaultMode=%q, got %q", tt.expectedMode, config.DefaultMode)
+				}
+			}
+		})
+	}
+}
+
+func TestSetConfigValue(t *testing.T) {
+	origHome := os.Getenv("HOME")
+	tmpDir, _ := os.MkdirTemp("", "config-test-*")
+	defer os.RemoveAll(tmpDir)
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	configDir := filepath.Join(tmpDir, ConfigDir)
+	os.MkdirAll(configDir, 0700)
+	envPath := filepath.Join(configDir, EnvFile)
+
+	t.Run("add new key to empty file", func(t *testing.T) {
+		os.WriteFile(envPath, []byte(""), 0600)
+
+		err := SetConfigValue("COMMIT_DEFAULT_MODE", "single")
+		if err != nil {
+			t.Fatalf("SetConfigValue failed: %v", err)
+		}
+
+		content, _ := os.ReadFile(envPath)
+		if !contains(string(content), "COMMIT_DEFAULT_MODE=single") {
+			t.Errorf("expected key to be added, got: %s", content)
+		}
+	})
+
+	t.Run("add new key to existing file", func(t *testing.T) {
+		os.WriteFile(envPath, []byte("COMMIT_PROVIDER=anthropic\n"), 0600)
+
+		err := SetConfigValue("COMMIT_DEFAULT_MODE", "smart")
+		if err != nil {
+			t.Fatalf("SetConfigValue failed: %v", err)
+		}
+
+		content, _ := os.ReadFile(envPath)
+		if !contains(string(content), "COMMIT_PROVIDER=anthropic") {
+			t.Errorf("original content should be preserved")
+		}
+		if !contains(string(content), "COMMIT_DEFAULT_MODE=smart") {
+			t.Errorf("expected key to be added, got: %s", content)
+		}
+	})
+
+	t.Run("update existing key", func(t *testing.T) {
+		os.WriteFile(envPath, []byte("COMMIT_PROVIDER=anthropic\nCOMMIT_DEFAULT_MODE=smart\n"), 0600)
+
+		err := SetConfigValue("COMMIT_DEFAULT_MODE", "single")
+		if err != nil {
+			t.Fatalf("SetConfigValue failed: %v", err)
+		}
+
+		content, _ := os.ReadFile(envPath)
+		if !contains(string(content), "COMMIT_DEFAULT_MODE=single") {
+			t.Errorf("expected key to be updated to single, got: %s", content)
+		}
+		if contains(string(content), "COMMIT_DEFAULT_MODE=smart") {
+			t.Errorf("old value should not be present")
+		}
+	})
+}
+
 func TestErrorTypes(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -324,6 +457,11 @@ func TestErrorTypes(t *testing.T) {
 			name:     "MissingAPIKeyError",
 			err:      &MissingAPIKeyError{Provider: "openai", EnvVar: "OPENAI_API_KEY"},
 			expected: "missing API key for provider \"openai\". Set OPENAI_API_KEY in ~/.commit-tool/.env",
+		},
+		{
+			name:     "InvalidDefaultModeError",
+			err:      &InvalidDefaultModeError{Mode: "invalid"},
+			expected: "invalid default mode \"invalid\". Use: smart or single",
 		},
 	}
 

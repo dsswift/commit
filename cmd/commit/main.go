@@ -52,6 +52,11 @@ func run() int {
 		return 1
 	}
 
+	// Handle --set flag
+	if flags.setConfig != "" {
+		return handleSetConfig(flags.setConfig)
+	}
+
 	// Handle --diff flag
 	if flags.diffFile != "" {
 		return handleDiff(flags)
@@ -137,10 +142,12 @@ type flags struct {
 	version     bool
 	upgrade     bool
 	single      bool
+	smart       bool
 	diffFile    string
 	diffFrom    string
 	diffTo      string
 	provider    string
+	setConfig   string
 }
 
 func parseFlags() flags {
@@ -161,6 +168,9 @@ func parseFlags() flags {
 	flag.StringVar(&f.diffTo, "to", "", "End ref for diff analysis")
 	flag.StringVar(&f.provider, "provider", "", "Override LLM provider")
 	flag.BoolVar(&f.single, "single", false, "Create a single commit for all files")
+	flag.BoolVar(&f.single, "1", false, "Create a single commit for all files (shorthand)")
+	flag.BoolVar(&f.smart, "smart", false, "Create semantic commits (default)")
+	flag.StringVar(&f.setConfig, "set", "", "Set config value (e.g., defaultMode=single)")
 
 	flag.Parse()
 
@@ -314,8 +324,19 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 		return result
 	}
 
-	// Set single commit mode
-	analysisReq.SingleCommit = flags.single
+	// Resolve commit mode: flags override config
+	singleMode := flags.single
+	if !flags.single && !flags.smart {
+		// No explicit flag - use config default
+		if userConfig.DefaultMode == "single" {
+			singleMode = true
+		}
+	}
+	// --smart flag explicitly overrides config to multi-commit mode
+	if flags.smart {
+		singleMode = false
+	}
+	analysisReq.SingleCommit = singleMode
 
 	// Log context built
 	if logger != nil {
@@ -620,6 +641,39 @@ func handleReverse(gitRoot string, force, verbose bool) int {
 	return 0
 }
 
+func handleSetConfig(setting string) int {
+	parts := strings.SplitN(setting, "=", 2)
+	if len(parts) != 2 {
+		fmt.Printf("Invalid format. Use: commit --set key=value\n")
+		return 1
+	}
+
+	key, value := parts[0], parts[1]
+
+	// Map user-friendly names to env vars
+	var envKey string
+	switch key {
+	case "defaultMode":
+		if value != "smart" && value != "single" {
+			fmt.Printf("Invalid value for defaultMode. Use: smart or single\n")
+			return 1
+		}
+		envKey = "COMMIT_DEFAULT_MODE"
+	default:
+		fmt.Printf("Unknown config key: %s\n", key)
+		fmt.Println("Available keys: defaultMode")
+		return 1
+	}
+
+	if err := config.SetConfigValue(envKey, value); err != nil {
+		fmt.Printf("Failed to set config: %v\n", err)
+		return 1
+	}
+
+	fmt.Printf("Set %s=%s\n", key, value)
+	return 0
+}
+
 func handleConfigError(err error) {
 	switch e := err.(type) {
 	case *config.ConfigNotFoundError:
@@ -659,6 +713,13 @@ func handleConfigError(err error) {
 		fmt.Println()
 		fmt.Printf("   Provider %q requires %s to be set.\n", e.Provider, e.EnvVar)
 		fmt.Println("   Edit ~/.commit-tool/.env to add your API key.")
+
+	case *config.InvalidDefaultModeError:
+		printStepError(fmt.Sprintf("Invalid default mode: %s", e.Mode))
+		printFinal("❌", "Configuration error")
+		fmt.Println()
+		fmt.Printf("   Default mode %q is not valid.\n", e.Mode)
+		fmt.Println("   Use: smart or single")
 
 	default:
 		printError("Failed to load config", err)

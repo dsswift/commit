@@ -53,9 +53,10 @@ type ExecutedCommit struct {
 
 // UserConfig represents the user's global configuration from ~/.commit-tool/.env.
 type UserConfig struct {
-	Provider string `json:"provider"`
-	Model    string `json:"model,omitempty"`
-	DryRun   bool   `json:"dryRun,omitempty"`
+	Provider    string `json:"provider"`
+	Model       string `json:"model,omitempty"`
+	DryRun      bool   `json:"dryRun,omitempty"`
+	DefaultMode string `json:"defaultMode,omitempty"` // "smart" or "single"
 
 	// API keys for different providers
 	AnthropicAPIKey string `json:"-"` // Never log API keys

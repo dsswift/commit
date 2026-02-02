@@ -71,9 +71,10 @@ func LoadUserConfig() (*types.UserConfig, error) {
 	}
 
 	config := &types.UserConfig{
-		Provider: env["COMMIT_PROVIDER"],
-		Model:    env["COMMIT_MODEL"],
-		DryRun:   strings.ToLower(env["COMMIT_DRY_RUN"]) == "true",
+		Provider:    env["COMMIT_PROVIDER"],
+		Model:       env["COMMIT_MODEL"],
+		DryRun:      strings.ToLower(env["COMMIT_DRY_RUN"]) == "true",
+		DefaultMode: env["COMMIT_DEFAULT_MODE"],
 
 		AnthropicAPIKey: env["ANTHROPIC_API_KEY"],
 		OpenAIAPIKey:    env["OPENAI_API_KEY"],
@@ -105,6 +106,11 @@ func LoadUserConfig() (*types.UserConfig, error) {
 	// Validate API key is set for the provider
 	if err := validateAPIKey(config); err != nil {
 		return nil, err
+	}
+
+	// Validate default mode if set
+	if config.DefaultMode != "" && config.DefaultMode != "smart" && config.DefaultMode != "single" {
+		return nil, &InvalidDefaultModeError{Mode: config.DefaultMode}
 	}
 
 	return config, nil
@@ -242,6 +248,9 @@ AZURE_FOUNDRY_DEPLOYMENT=
 
 # Always preview without committing (useful for testing)
 # COMMIT_DRY_RUN=true
+
+# Default commit mode: smart (multiple semantic commits) or single (one commit)
+# COMMIT_DEFAULT_MODE=smart
 `
 
 	if err := os.WriteFile(envPath, []byte(template), 0600); err != nil {
@@ -249,6 +258,46 @@ AZURE_FOUNDRY_DEPLOYMENT=
 	}
 
 	return nil
+}
+
+// SetConfigValue updates or adds a key-value pair in the .env config file.
+func SetConfigValue(key, value string) error {
+	configPath, err := ConfigPath()
+	if err != nil {
+		return err
+	}
+
+	envPath := filepath.Join(configPath, EnvFile)
+
+	// Read existing content
+	content, err := os.ReadFile(envPath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	lines := strings.Split(string(content), "\n")
+	found := false
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, key+"=") {
+			lines[i] = key + "=" + value
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		// Add new line, ensuring we don't create double newlines at end
+		if len(lines) > 0 && lines[len(lines)-1] == "" {
+			lines[len(lines)-1] = key + "=" + value
+			lines = append(lines, "")
+		} else {
+			lines = append(lines, key+"="+value)
+		}
+	}
+
+	return os.WriteFile(envPath, []byte(strings.Join(lines, "\n")), 0600)
 }
 
 // Error types for configuration issues.
@@ -286,4 +335,13 @@ type MissingAPIKeyError struct {
 
 func (e *MissingAPIKeyError) Error() string {
 	return fmt.Sprintf("missing API key for provider %q. Set %s in ~/.commit-tool/.env", e.Provider, e.EnvVar)
+}
+
+// InvalidDefaultModeError indicates an invalid default mode value.
+type InvalidDefaultModeError struct {
+	Mode string
+}
+
+func (e *InvalidDefaultModeError) Error() string {
+	return fmt.Sprintf("invalid default mode %q. Use: smart or single", e.Mode)
 }
