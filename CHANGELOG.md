@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.10.1](https://github.com/dsswift/commit/compare/v1.10.0...v1.10.1) (2026-02-03)
+
+
+### Bug Fixes
+
+* detect and handle llm response truncation ([07dcb75](https://github.com/dsswift/commit/commit/07dcb75169bf6a2f36a76067ae92bec89e15ebe7))
+
 ## [1.10.0](https://github.com/dsswift/commit/compare/v1.9.0...v1.10.0) (2026-02-02)
 
 
