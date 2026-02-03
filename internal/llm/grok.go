@@ -68,7 +68,7 @@ func (p *GrokProvider) Analyze(ctx context.Context, req *types.AnalysisRequest) 
 			{Role: "user", Content: userPrompt},
 		},
 		Temperature: 0.3,
-		MaxTokens:   2000,
+		MaxTokens:   8192,
 	}
 
 	bodyBytes, err := json.Marshal(requestBody)
@@ -111,6 +111,10 @@ func (p *GrokProvider) Analyze(ctx context.Context, req *types.AnalysisRequest) 
 		return nil, &ProviderError{Provider: "grok", Message: "empty response from API"}
 	}
 
+	if grokResp.Choices[0].FinishReason == "length" {
+		return nil, &ProviderError{Provider: "grok", Message: "response truncated: exceeded max tokens limit"}
+	}
+
 	content := grokResp.Choices[0].Message.Content
 
 	// Clean up and parse
@@ -137,7 +141,7 @@ func (p *GrokProvider) AnalyzeDiff(ctx context.Context, system, user string) (st
 			{Role: "user", Content: user},
 		},
 		Temperature: 0.3,
-		MaxTokens:   2000,
+		MaxTokens:   8192,
 	}
 
 	bodyBytes, err := json.Marshal(requestBody)
@@ -178,6 +182,10 @@ func (p *GrokProvider) AnalyzeDiff(ctx context.Context, system, user string) (st
 
 	if len(grokResp.Choices) == 0 {
 		return "", &ProviderError{Provider: "grok", Message: "empty response from API"}
+	}
+
+	if grokResp.Choices[0].FinishReason == "length" {
+		return "", &ProviderError{Provider: "grok", Message: "response truncated: exceeded max tokens limit"}
 	}
 
 	return grokResp.Choices[0].Message.Content, nil

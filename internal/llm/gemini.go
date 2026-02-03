@@ -73,7 +73,7 @@ func (p *GeminiProvider) Analyze(ctx context.Context, req *types.AnalysisRequest
 		},
 		GenerationConfig: geminiGenerationConfig{
 			Temperature:     0.3,
-			MaxOutputTokens: 2000,
+			MaxOutputTokens: 8192,
 		},
 	}
 
@@ -118,6 +118,10 @@ func (p *GeminiProvider) Analyze(ctx context.Context, req *types.AnalysisRequest
 		return nil, &ProviderError{Provider: "gemini", Message: "empty response from API"}
 	}
 
+	if geminiResp.Candidates[0].FinishReason == "MAX_TOKENS" {
+		return nil, &ProviderError{Provider: "gemini", Message: "response truncated: exceeded max tokens limit"}
+	}
+
 	content := geminiResp.Candidates[0].Content.Parts[0].Text
 
 	// Clean up and parse
@@ -150,7 +154,7 @@ func (p *GeminiProvider) AnalyzeDiff(ctx context.Context, system, user string) (
 		},
 		GenerationConfig: geminiGenerationConfig{
 			Temperature:     0.3,
-			MaxOutputTokens: 2000,
+			MaxOutputTokens: 8192,
 		},
 	}
 
@@ -195,6 +199,10 @@ func (p *GeminiProvider) AnalyzeDiff(ctx context.Context, system, user string) (
 		return "", &ProviderError{Provider: "gemini", Message: "empty response from API"}
 	}
 
+	if geminiResp.Candidates[0].FinishReason == "MAX_TOKENS" {
+		return "", &ProviderError{Provider: "gemini", Message: "response truncated: exceeded max tokens limit"}
+	}
+
 	return geminiResp.Candidates[0].Content.Parts[0].Text, nil
 }
 
@@ -221,5 +229,6 @@ type geminiResponse struct {
 }
 
 type geminiCandidate struct {
-	Content geminiContent `json:"content"`
+	Content      geminiContent `json:"content"`
+	FinishReason string        `json:"finishReason"`
 }

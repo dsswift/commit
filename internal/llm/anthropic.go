@@ -63,7 +63,7 @@ func (p *AnthropicProvider) Analyze(ctx context.Context, req *types.AnalysisRequ
 
 	requestBody := anthropicRequest{
 		Model:     p.model,
-		MaxTokens: 2000,
+		MaxTokens: 8192,
 		System:    systemPrompt,
 		Messages: []anthropicMessage{
 			{Role: "user", Content: userPrompt},
@@ -111,6 +111,10 @@ func (p *AnthropicProvider) Analyze(ctx context.Context, req *types.AnalysisRequ
 		return nil, &ProviderError{Provider: "anthropic", Message: "empty response from API"}
 	}
 
+	if anthropicResp.StopReason == "max_tokens" {
+		return nil, &ProviderError{Provider: "anthropic", Message: "response truncated: exceeded max tokens limit"}
+	}
+
 	content := anthropicResp.Content[0].Text
 
 	// Clean up and parse
@@ -132,7 +136,7 @@ func (p *AnthropicProvider) Analyze(ctx context.Context, req *types.AnalysisRequ
 func (p *AnthropicProvider) AnalyzeDiff(ctx context.Context, system, user string) (string, error) {
 	requestBody := anthropicRequest{
 		Model:     p.model,
-		MaxTokens: 2000,
+		MaxTokens: 8192,
 		System:    system,
 		Messages: []anthropicMessage{
 			{Role: "user", Content: user},
@@ -180,6 +184,10 @@ func (p *AnthropicProvider) AnalyzeDiff(ctx context.Context, system, user string
 		return "", &ProviderError{Provider: "anthropic", Message: "empty response from API"}
 	}
 
+	if anthropicResp.StopReason == "max_tokens" {
+		return "", &ProviderError{Provider: "anthropic", Message: "response truncated: exceeded max tokens limit"}
+	}
+
 	return anthropicResp.Content[0].Text, nil
 }
 
@@ -196,8 +204,9 @@ type anthropicMessage struct {
 }
 
 type anthropicResponse struct {
-	Content []anthropicContent `json:"content"`
-	Usage   anthropicUsage     `json:"usage"`
+	Content    []anthropicContent `json:"content"`
+	Usage      anthropicUsage     `json:"usage"`
+	StopReason string             `json:"stop_reason"`
 }
 
 type anthropicContent struct {

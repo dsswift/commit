@@ -67,7 +67,7 @@ func (p *OpenAIProvider) Analyze(ctx context.Context, req *types.AnalysisRequest
 			{Role: "user", Content: userPrompt},
 		},
 		Temperature: 0.3,
-		MaxTokens:   2000,
+		MaxTokens:   8192,
 	}
 
 	bodyBytes, err := json.Marshal(requestBody)
@@ -110,6 +110,10 @@ func (p *OpenAIProvider) Analyze(ctx context.Context, req *types.AnalysisRequest
 		return nil, &ProviderError{Provider: "openai", Message: "empty response from API"}
 	}
 
+	if openaiResp.Choices[0].FinishReason == "length" {
+		return nil, &ProviderError{Provider: "openai", Message: "response truncated: exceeded max tokens limit"}
+	}
+
 	content := openaiResp.Choices[0].Message.Content
 
 	// Clean up and parse
@@ -136,7 +140,7 @@ func (p *OpenAIProvider) AnalyzeDiff(ctx context.Context, system, user string) (
 			{Role: "user", Content: user},
 		},
 		Temperature: 0.3,
-		MaxTokens:   2000,
+		MaxTokens:   8192,
 	}
 
 	bodyBytes, err := json.Marshal(requestBody)
@@ -177,6 +181,10 @@ func (p *OpenAIProvider) AnalyzeDiff(ctx context.Context, system, user string) (
 
 	if len(openaiResp.Choices) == 0 {
 		return "", &ProviderError{Provider: "openai", Message: "empty response from API"}
+	}
+
+	if openaiResp.Choices[0].FinishReason == "length" {
+		return "", &ProviderError{Provider: "openai", Message: "response truncated: exceeded max tokens limit"}
 	}
 
 	return openaiResp.Choices[0].Message.Content, nil

@@ -115,7 +115,7 @@ func (p *AzureFoundryProvider) AnalyzeDiff(ctx context.Context, system, user str
 func (p *AzureFoundryProvider) callAnthropicAPI(ctx context.Context, system, user string) (string, error) {
 	requestBody := anthropicAPIRequest{
 		Model:     p.deployment,
-		MaxTokens: 2000,
+		MaxTokens: 8192,
 		System:    system,
 		Messages: []anthropicAPIMessage{
 			{Role: "user", Content: user},
@@ -165,6 +165,10 @@ func (p *AzureFoundryProvider) callAnthropicAPI(ctx context.Context, system, use
 		return "", &ProviderError{Provider: "azure-foundry", Message: "empty response from API"}
 	}
 
+	if anthropicResp.StopReason == "max_tokens" {
+		return "", &ProviderError{Provider: "azure-foundry", Message: "response truncated: exceeded max tokens limit"}
+	}
+
 	return anthropicResp.Content[0].Text, nil
 }
 
@@ -176,7 +180,7 @@ func (p *AzureFoundryProvider) callOpenAIAPI(ctx context.Context, system, user s
 			{Role: "user", Content: user},
 		},
 		Temperature: 0.3,
-		MaxTokens:   2000,
+		MaxTokens:   8192,
 	}
 
 	bodyBytes, err := json.Marshal(requestBody)
@@ -222,6 +226,10 @@ func (p *AzureFoundryProvider) callOpenAIAPI(ctx context.Context, system, user s
 		return "", &ProviderError{Provider: "azure-foundry", Message: "empty response from API"}
 	}
 
+	if openAIResp.Choices[0].FinishReason == "length" {
+		return "", &ProviderError{Provider: "azure-foundry", Message: "response truncated: exceeded max tokens limit"}
+	}
+
 	return openAIResp.Choices[0].Message.Content, nil
 }
 
@@ -256,8 +264,9 @@ type anthropicAPIMessage struct {
 }
 
 type anthropicAPIResponse struct {
-	Content []anthropicAPIContent `json:"content"`
-	Usage   anthropicAPIUsage     `json:"usage"`
+	Content    []anthropicAPIContent `json:"content"`
+	Usage      anthropicAPIUsage     `json:"usage"`
+	StopReason string                `json:"stop_reason"`
 }
 
 type anthropicAPIContent struct {
