@@ -46,6 +46,13 @@ func IsGitRepo(dir string) bool {
 	return cmd.Run() == nil
 }
 
+// statusEntry holds parsed git status information for a single file.
+type statusEntry struct {
+	filename       string
+	indexStatus    byte
+	workTreeStatus byte
+}
+
 // Status returns the current git status.
 func (c *Collector) Status() (*types.GitStatus, error) {
 	cmd := exec.Command("git", "status", "--porcelain")
@@ -56,7 +63,9 @@ func (c *Collector) Status() (*types.GitStatus, error) {
 		return nil, fmt.Errorf("failed to get git status: %w", err)
 	}
 
-	status := &types.GitStatus{}
+	// First pass: collect all entries and filenames
+	var entries []statusEntry
+	var filenames []string
 	scanner := bufio.NewScanner(bytes.NewReader(out))
 
 	for scanner.Scan() {
@@ -79,32 +88,53 @@ func (c *Collector) Status() (*types.GitStatus, error) {
 			}
 		}
 
-		// Skip files that are ignored by .gitignore
-		if c.IsIgnored(filename) {
-			continue
+		entries = append(entries, statusEntry{
+			filename:       filename,
+			indexStatus:    indexStatus,
+			workTreeStatus: workTreeStatus,
+		})
+		filenames = append(filenames, filename)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	// Batch filter ignored files (single subprocess call instead of N calls)
+	nonIgnored := c.filterIgnoredFiles(filenames)
+	nonIgnoredSet := make(map[string]bool, len(nonIgnored))
+	for _, f := range nonIgnored {
+		nonIgnoredSet[f] = true
+	}
+
+	// Second pass: classify files that aren't ignored
+	status := &types.GitStatus{}
+	for _, entry := range entries {
+		if !nonIgnoredSet[entry.filename] {
+			continue // Skip ignored files
 		}
 
 		// Classify the file based on status codes
 		switch {
-		case indexStatus == 'M' || workTreeStatus == 'M':
-			status.Modified = append(status.Modified, filename)
-		case indexStatus == 'A':
-			status.Added = append(status.Added, filename)
-		case indexStatus == 'D' || workTreeStatus == 'D':
-			status.Deleted = append(status.Deleted, filename)
-		case indexStatus == 'R':
-			status.Renamed = append(status.Renamed, filename)
-		case indexStatus == '?' && workTreeStatus == '?':
-			status.Untracked = append(status.Untracked, filename)
+		case entry.indexStatus == 'M' || entry.workTreeStatus == 'M':
+			status.Modified = append(status.Modified, entry.filename)
+		case entry.indexStatus == 'A':
+			status.Added = append(status.Added, entry.filename)
+		case entry.indexStatus == 'D' || entry.workTreeStatus == 'D':
+			status.Deleted = append(status.Deleted, entry.filename)
+		case entry.indexStatus == 'R':
+			status.Renamed = append(status.Renamed, entry.filename)
+		case entry.indexStatus == '?' && entry.workTreeStatus == '?':
+			status.Untracked = append(status.Untracked, entry.filename)
 		}
 
 		// Track staged files separately
-		if indexStatus != ' ' && indexStatus != '?' {
-			status.Staged = append(status.Staged, filename)
+		if entry.indexStatus != ' ' && entry.indexStatus != '?' {
+			status.Staged = append(status.Staged, entry.filename)
 		}
 	}
 
-	return status, scanner.Err()
+	return status, nil
 }
 
 // IsIgnored checks if a file is ignored by .gitignore.
@@ -112,6 +142,48 @@ func (c *Collector) IsIgnored(file string) bool {
 	cmd := exec.Command("git", "check-ignore", "-q", file)
 	cmd.Dir = c.workDir
 	return cmd.Run() == nil
+}
+
+// filterIgnoredFiles removes files that are ignored by .gitignore using batch check.
+// This is much more efficient than per-file IsIgnored() calls for large file sets.
+func (c *Collector) filterIgnoredFiles(files []string) []string {
+	if len(files) == 0 {
+		return files
+	}
+
+	// Use git check-ignore --stdin to batch check
+	cmd := exec.Command("git", "check-ignore", "--stdin")
+	cmd.Dir = c.workDir
+	cmd.Stdin = strings.NewReader(strings.Join(files, "\n"))
+
+	out, err := cmd.Output()
+	if err != nil {
+		// Exit code 1 means no files matched (none ignored) - that's fine
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return files
+		}
+		// On error, return original list (fail open)
+		return files
+	}
+
+	// Build set of ignored files
+	ignoredSet := make(map[string]bool)
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			ignoredSet[line] = true
+		}
+	}
+
+	// Filter out ignored files
+	var result []string
+	for _, f := range files {
+		if !ignoredSet[f] {
+			result = append(result, f)
+		}
+	}
+
+	return result
 }
 
 // Diff returns the diff for the specified files or all changes.

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/dsswift/commit/internal/assert"
@@ -252,36 +251,30 @@ func (s *Stager) fullPath(file string) string {
 	return s.workDir + "/" + file
 }
 
-// expandDirectory returns all files within a directory (recursively).
+// expandDirectory returns all untracked, non-ignored files within a directory.
+// Uses git ls-files for efficient batch ignore checking instead of per-file subprocess calls.
 // Returns paths relative to the work directory.
 func (s *Stager) expandDirectory(dir string) ([]string, error) {
+	// Use git ls-files to get untracked, non-ignored files
+	// --other: show untracked files
+	// --exclude-standard: apply .gitignore rules
+	cmd := exec.Command("git", "ls-files", "--other", "--exclude-standard", dir)
+	cmd.Dir = s.workDir
+
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list files in %s: %w", dir, err)
+	}
+
 	var files []string
-	fullDir := s.fullPath(dir)
-
-	err := filepath.Walk(fullDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			files = append(files, line)
 		}
-		if info.IsDir() {
-			return nil // Skip directories themselves, we only want files
-		}
+	}
 
-		// Convert back to relative path
-		relPath, err := filepath.Rel(s.workDir, path)
-		if err != nil {
-			return err
-		}
-
-		// Skip ignored files
-		if s.isIgnored(relPath) {
-			return nil
-		}
-
-		files = append(files, relPath)
-		return nil
-	})
-
-	return files, err
+	return files, nil
 }
 
 // HasStagedChanges returns true if there are any staged changes.
