@@ -122,12 +122,20 @@ cat "%s" > "$1"
 // Uses a counter-based approach: git processes commits in todo order, so the
 // Nth editor invocation corresponds to the Nth reword entry with a custom message.
 func (r *Rebaser) createRewordScript(entries []RebaseEntry) (string, func(), error) {
-	// Collect only reword entries with custom messages
+	// Collect messages for all editor invocations:
+	// - OpReword entries with custom message
+	// - Squash group leaders (pick/reword with MessageEdited followed by squash)
 	var rewordMsgs []string
 
-	for _, entry := range entries {
+	for i, entry := range entries {
 		if entry.Operation == OpReword && entry.NewMessage != "" {
 			rewordMsgs = append(rewordMsgs, entry.NewMessage)
+		} else if entry.MessageEdited && entry.NewMessage != "" {
+			// Check if this entry leads a squash group
+			hasSquash := i+1 < len(entries) && entries[i+1].Operation == OpSquash
+			if hasSquash {
+				rewordMsgs = append(rewordMsgs, entry.NewMessage)
+			}
 		}
 	}
 
