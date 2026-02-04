@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.10.2](https://github.com/dsswift/commit/compare/v1.10.1...v1.10.2) (2026-02-04)
+
+
+### Bug Fixes
+
+* batch git ignore checks to prevent hang on large dirs ([74ed3d7](https://github.com/dsswift/commit/commit/74ed3d724e1ee794543aeb98a686273a2456e197))
+
 ### [1.10.1](https://github.com/dsswift/commit/compare/v1.10.0...v1.10.1) (2026-02-03)
 
 
