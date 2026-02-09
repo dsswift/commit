@@ -123,6 +123,46 @@ func TestBuildPrompt_MultipleCommits(t *testing.T) {
 	}
 }
 
+func TestFormatTypes(t *testing.T) {
+	tests := []struct {
+		input    []string
+		expected string
+	}{
+		{[]string{"feat", "fix", "chore"}, "feat | fix | chore"},
+		{[]string{"feat"}, "feat"},
+		{[]string{}, ""},
+	}
+	for _, tt := range tests {
+		result := formatTypes(tt.input)
+		if result != tt.expected {
+			t.Errorf("formatTypes(%v) = %q, expected %q", tt.input, result, tt.expected)
+		}
+	}
+}
+
+func TestBuildPrompt_TypeSubstitution(t *testing.T) {
+	req := &types.AnalysisRequest{
+		Files:     []types.FileChange{{Path: "file.go", Status: "modified"}},
+		Diff:      "diff",
+		HasScopes: false,
+		Rules:     types.CommitRules{Types: []string{"feat", "fix", "chore"}, MaxMessageLength: 50},
+	}
+	system, user := BuildPrompt(req)
+
+	if !containsString(system, "TYPE SUBSTITUTION") {
+		t.Error("system prompt should contain TYPE SUBSTITUTION section")
+	}
+	if !containsString(system, "refactor") {
+		t.Error("system prompt should mention refactor in substitution rules")
+	}
+	if !containsString(system, "chore") {
+		t.Error("system prompt should mention chore as fallback")
+	}
+	if !containsString(user, "feat | fix | chore") {
+		t.Error("user prompt should format types with pipe separators")
+	}
+}
+
 func TestParseCommitPlan_ValidJSON(t *testing.T) {
 	content := `{
 		"commits": [

@@ -4,6 +4,7 @@ package llm
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/dsswift/commit/pkg/types"
 )
@@ -53,26 +54,48 @@ func BuildPrompt(req *types.AnalysisRequest) (system string, user string) {
 RULES:
 
 TYPE SELECTION:
-1. Type MUST be from the allowed types list - never use any other type
-2. docs type: ONLY for actual documentation files (.md, .txt, .rst, README, CHANGELOG, LICENSE, etc.). Changes to code files (.go, .py, .js, .ts, .java, .cs, .rs, etc.) are NEVER docs - even if the change is to comments, strings, or embedded text. For code file changes, use: feat (behavior change), fix (bug fix), chore (maintenance/config), or refactor (restructure)
-3. feat vs refactor: ANY user-perceivable change is feat (UI changes, new CLI args/aliases, button colors, autocomplete behavior, etc.). fix = correcting incorrect behavior. refactor = 100% non-functional with zero behavior change - only internal code structure changes invisible to users
-4. Always bundle test files with their corresponding feature or fix - never separate tests from implementation
-5. Only use "test" type for standalone tests with no corresponding implementation changes; if "test" is not allowed, use "chore"
+1. docs: ONLY for documentation files (.md, .txt, .rst, README, CHANGELOG, LICENSE). Code files are NEVER docs.
+2. feat: Changes that affect APPLICATION BEHAVIOR or user experience:
+   - App code: new features, UI changes, CLI args, API endpoints
+   - Terraform/IaC: new resources, new policies, changed configurations
+   - HTML/templates: changes to markup affect what users see (NOT refactoring)
+   - Anything that changes what gets deployed or how it behaves
+3. fix: Corrects incorrect/broken behavior in the application
+4. refactor: ONLY pure restructuring with IDENTICAL behavior - examples:
+   - Moving code/resources between files
+   - Extracting duplicated logic into a shared service class
+   - Renaming variables/functions for clarity
+   If the system does ANYTHING different after the change, it is NOT refactor.
+5. chore: General-purpose type for non-application changes. Also the FALLBACK when no other type fits or when a preferred type is not allowed:
+   - CI/CD pipeline changes, GitHub Actions, build scripts
+   - Dependency updates, linting configs, dev tooling
+   - Catch-all for maintenance work that does not fit other categories
+6. Always bundle test files with their corresponding feature or fix - never separate tests from implementation
+7. Only use "test" type for standalone tests with no corresponding implementation changes; if "test" is not allowed, use "chore"
+
+TYPE SUBSTITUTION (when your preferred type is not in the allowed list):
+The allowed types list is ABSOLUTE. If your natural choice is not in the list, substitute:
+  refactor → chore (describe the restructuring in the message)
+  style    → chore (describe the formatting in the message)
+  perf     → feat  (describe the optimization in the message)
+  test     → chore (describe the test changes in the message)
+  any other → chore (chore is the general fallback)
+When substituting, preserve intent in the commit message so the change is clear.
 
 GROUPING:
-6. Each commit should represent a single logical change
-7. Group related file changes together
+8. Each commit should represent a single logical change
+9. Group related file changes together
 
 SCOPE:
-8. The scope after → is the pre-computed MOST SPECIFIC scope for each file - use it exactly as shown
-9. Do not substitute a more general scope even if it also matches the file path
-10. If hasScopes is true, include scope in format "type(scope): message"
-11. If hasScopes is false, use format "type: message"
+10. The scope after → is the pre-computed MOST SPECIFIC scope for each file - use it exactly as shown
+11. Do not substitute a more general scope even if it also matches the file path
+12. If hasScopes is true, include scope in format "type(scope): message"
+13. If hasScopes is false, use format "type: message"
 
 MESSAGE FORMAT:
-12. Use conventional commit format: "type(scope): message"
-13. Message must be lowercase, imperative mood, no period at end
-14. Message must not exceed the specified max length
+14. Use conventional commit format: "type(scope): message"
+15. Message must be lowercase, imperative mood, no period at end
+16. Message must not exceed the specified max length
 
 OUTPUT FORMAT:
 Return a JSON object with a "commits" array. Each commit has:
@@ -82,7 +105,7 @@ Return a JSON object with a "commits" array. Each commit has:
 - files: array of file paths included in this commit
 - reasoning: brief explanation of why this grouping
 
-Example response:
+Example responses:
 {
   "commits": [
     {
@@ -91,6 +114,18 @@ Example response:
       "message": "add logout functionality",
       "files": ["src/auth/logout.ts"],
       "reasoning": "New file adding logout behavior"
+    }
+  ]
+}
+
+{
+  "commits": [
+    {
+      "type": "chore",
+      "scope": "utils",
+      "message": "reorganize helper functions for clarity",
+      "files": ["src/utils/helpers.ts"],
+      "reasoning": "Refactoring work - using chore since refactor not allowed"
     }
   ]
 }`
@@ -112,7 +147,7 @@ RECENT COMMITS (for style reference):
 %s
 
 RULES:
-- Allowed types (ONLY use these, no other types): %v
+- ALLOWED TYPES (use ONLY these, substituting per rules above): %s
 - Max message length: %d characters
 - Has scopes: %v
 - Behavioral test: %s%s
@@ -121,7 +156,7 @@ Return JSON only, no markdown code blocks.`,
 		formatFiles(req.Files),
 		req.Diff,
 		formatCommits(req.RecentCommits),
-		req.Rules.Types,
+		formatTypes(req.Rules.Types),
 		req.Rules.MaxMessageLength,
 		req.HasScopes,
 		req.Rules.BehavioralTest,
@@ -152,6 +187,10 @@ func formatCommits(commits []string) string {
 		result += fmt.Sprintf("- %s\n", c)
 	}
 	return result
+}
+
+func formatTypes(types []string) string {
+	return strings.Join(types, " | ")
 }
 
 // ProviderError wraps errors from LLM providers.
