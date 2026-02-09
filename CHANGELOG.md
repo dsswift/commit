@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.11.0](https://github.com/dsswift/commit/compare/v1.10.2...v1.11.0) (2026-02-09)
+
+
+### Features
+
+* add type substitution rules to prompts ([3d8b768](https://github.com/dsswift/commit/commit/3d8b7682aeff28cb59b0646cb3ee7fbda3945a73))
+
+
+### Bug Fixes
+
+* handle squash group leader messages in rebase ([19e52be](https://github.com/dsswift/commit/commit/19e52be9542c5aa66573f3ba9b179364c6b1d87f))
+
 ### [1.10.2](https://github.com/dsswift/commit/compare/v1.10.1...v1.10.2) (2026-02-04)
 
 
