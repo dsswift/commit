@@ -1,13 +1,9 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/dsswift/commit/internal/assert"
@@ -15,15 +11,16 @@ import (
 )
 
 const (
-	openaiAPIURL     = "https://api.openai.com/v1/chat/completions"
+	openaiAPIURL       = "https://api.openai.com/v1/chat/completions"
 	defaultOpenAIModel = "gpt-4-turbo-preview"
 )
 
 // OpenAIProvider implements the Provider interface for OpenAI.
 type OpenAIProvider struct {
-	apiKey string
-	model  string
-	client *http.Client
+	apiKey  string
+	model   string
+	client  *http.Client
+	baseURL string
 }
 
 // NewOpenAIProvider creates a new OpenAI provider.
@@ -35,8 +32,9 @@ func NewOpenAIProvider(apiKey, model string) (*OpenAIProvider, error) {
 	}
 
 	return &OpenAIProvider{
-		apiKey: apiKey,
-		model:  model,
+		apiKey:  apiKey,
+		model:   model,
+		baseURL: openaiAPIURL,
 		client: &http.Client{
 			Timeout: 60 * time.Second,
 		},
@@ -70,39 +68,21 @@ func (p *OpenAIProvider) Analyze(ctx context.Context, req *types.AnalysisRequest
 		MaxTokens:   8192,
 	}
 
-	bodyBytes, err := json.Marshal(requestBody)
+	resp, err := doRequest(&llmRequest{
+		ctx:      ctx,
+		client:   p.client,
+		method:   "POST",
+		url:      p.baseURL,
+		headers:  p.headers(),
+		body:     requestBody,
+		provider: "openai",
+	})
 	if err != nil {
-		return nil, &ProviderError{Provider: "openai", Message: "failed to marshal request", Err: err}
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", openaiAPIURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return nil, &ProviderError{Provider: "openai", Message: "failed to create request", Err: err}
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, &ProviderError{Provider: "openai", Message: "request failed", Err: err}
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, &ProviderError{Provider: "openai", Message: "failed to read response", Err: err}
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, &ProviderError{
-			Provider: "openai",
-			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
-		}
+		return nil, err
 	}
 
 	var openaiResp openaiResponse
-	if err := json.Unmarshal(respBody, &openaiResp); err != nil {
+	if err := json.Unmarshal(resp.Body, &openaiResp); err != nil {
 		return nil, &ProviderError{Provider: "openai", Message: "failed to parse response", Err: err}
 	}
 
@@ -114,14 +94,7 @@ func (p *OpenAIProvider) Analyze(ctx context.Context, req *types.AnalysisRequest
 		return nil, &ProviderError{Provider: "openai", Message: "response truncated: exceeded max tokens limit"}
 	}
 
-	content := openaiResp.Choices[0].Message.Content
-
-	// Clean up and parse
-	content = strings.TrimSpace(content)
-	content = strings.TrimPrefix(content, "```json")
-	content = strings.TrimPrefix(content, "```")
-	content = strings.TrimSuffix(content, "```")
-	content = strings.TrimSpace(content)
+	content := cleanContent(openaiResp.Choices[0].Message.Content)
 
 	var plan types.CommitPlan
 	if err := json.Unmarshal([]byte(content), &plan); err != nil {
@@ -143,39 +116,21 @@ func (p *OpenAIProvider) AnalyzeDiff(ctx context.Context, system, user string) (
 		MaxTokens:   8192,
 	}
 
-	bodyBytes, err := json.Marshal(requestBody)
+	resp, err := doRequest(&llmRequest{
+		ctx:      ctx,
+		client:   p.client,
+		method:   "POST",
+		url:      p.baseURL,
+		headers:  p.headers(),
+		body:     requestBody,
+		provider: "openai",
+	})
 	if err != nil {
-		return "", &ProviderError{Provider: "openai", Message: "failed to marshal request", Err: err}
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", openaiAPIURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return "", &ProviderError{Provider: "openai", Message: "failed to create request", Err: err}
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return "", &ProviderError{Provider: "openai", Message: "request failed", Err: err}
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", &ProviderError{Provider: "openai", Message: "failed to read response", Err: err}
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return "", &ProviderError{
-			Provider: "openai",
-			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
-		}
+		return "", err
 	}
 
 	var openaiResp openaiResponse
-	if err := json.Unmarshal(respBody, &openaiResp); err != nil {
+	if err := json.Unmarshal(resp.Body, &openaiResp); err != nil {
 		return "", &ProviderError{Provider: "openai", Message: "failed to parse response", Err: err}
 	}
 
@@ -188,6 +143,13 @@ func (p *OpenAIProvider) AnalyzeDiff(ctx context.Context, system, user string) (
 	}
 
 	return openaiResp.Choices[0].Message.Content, nil
+}
+
+func (p *OpenAIProvider) headers() map[string]string {
+	return map[string]string{
+		"Content-Type":  "application/json",
+		"Authorization": "Bearer " + p.apiKey,
+	}
 }
 
 type openaiRequest struct {

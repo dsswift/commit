@@ -1,13 +1,10 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/dsswift/commit/internal/assert"
@@ -15,15 +12,16 @@ import (
 )
 
 const (
-	geminiAPIURL     = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent"
+	geminiAPIURL       = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent"
 	defaultGeminiModel = "gemini-1.5-pro"
 )
 
 // GeminiProvider implements the Provider interface for Google's Gemini.
 type GeminiProvider struct {
-	apiKey string
-	model  string
-	client *http.Client
+	apiKey  string
+	model   string
+	client  *http.Client
+	baseURL string
 }
 
 // NewGeminiProvider creates a new Gemini provider.
@@ -35,8 +33,9 @@ func NewGeminiProvider(apiKey, model string) (*GeminiProvider, error) {
 	}
 
 	return &GeminiProvider{
-		apiKey: apiKey,
-		model:  model,
+		apiKey:  apiKey,
+		model:   model,
+		baseURL: geminiAPIURL,
 		client: &http.Client{
 			Timeout: 60 * time.Second,
 		},
@@ -77,40 +76,21 @@ func (p *GeminiProvider) Analyze(ctx context.Context, req *types.AnalysisRequest
 		},
 	}
 
-	bodyBytes, err := json.Marshal(requestBody)
+	resp, err := doRequest(&llmRequest{
+		ctx:      ctx,
+		client:   p.client,
+		method:   "POST",
+		url:      p.apiURL(),
+		headers:  p.headers(),
+		body:     requestBody,
+		provider: "gemini",
+	})
 	if err != nil {
-		return nil, &ProviderError{Provider: "gemini", Message: "failed to marshal request", Err: err}
-	}
-
-	url := fmt.Sprintf(geminiAPIURL, p.model) + "?key=" + p.apiKey
-
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return nil, &ProviderError{Provider: "gemini", Message: "failed to create request", Err: err}
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, &ProviderError{Provider: "gemini", Message: "request failed", Err: err}
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, &ProviderError{Provider: "gemini", Message: "failed to read response", Err: err}
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, &ProviderError{
-			Provider: "gemini",
-			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
-		}
+		return nil, err
 	}
 
 	var geminiResp geminiResponse
-	if err := json.Unmarshal(respBody, &geminiResp); err != nil {
+	if err := json.Unmarshal(resp.Body, &geminiResp); err != nil {
 		return nil, &ProviderError{Provider: "gemini", Message: "failed to parse response", Err: err}
 	}
 
@@ -122,14 +102,7 @@ func (p *GeminiProvider) Analyze(ctx context.Context, req *types.AnalysisRequest
 		return nil, &ProviderError{Provider: "gemini", Message: "response truncated: exceeded max tokens limit"}
 	}
 
-	content := geminiResp.Candidates[0].Content.Parts[0].Text
-
-	// Clean up and parse
-	content = strings.TrimSpace(content)
-	content = strings.TrimPrefix(content, "```json")
-	content = strings.TrimPrefix(content, "```")
-	content = strings.TrimSuffix(content, "```")
-	content = strings.TrimSpace(content)
+	content := cleanContent(geminiResp.Candidates[0].Content.Parts[0].Text)
 
 	var plan types.CommitPlan
 	if err := json.Unmarshal([]byte(content), &plan); err != nil {
@@ -141,7 +114,6 @@ func (p *GeminiProvider) Analyze(ctx context.Context, req *types.AnalysisRequest
 
 // AnalyzeDiff sends a diff analysis request to Gemini and returns the analysis.
 func (p *GeminiProvider) AnalyzeDiff(ctx context.Context, system, user string) (string, error) {
-	// Gemini uses a different format - combine system and user prompts
 	combinedPrompt := system + "\n\n---\n\n" + user
 
 	requestBody := geminiRequest{
@@ -158,40 +130,21 @@ func (p *GeminiProvider) AnalyzeDiff(ctx context.Context, system, user string) (
 		},
 	}
 
-	bodyBytes, err := json.Marshal(requestBody)
+	resp, err := doRequest(&llmRequest{
+		ctx:      ctx,
+		client:   p.client,
+		method:   "POST",
+		url:      p.apiURL(),
+		headers:  p.headers(),
+		body:     requestBody,
+		provider: "gemini",
+	})
 	if err != nil {
-		return "", &ProviderError{Provider: "gemini", Message: "failed to marshal request", Err: err}
-	}
-
-	url := fmt.Sprintf(geminiAPIURL, p.model) + "?key=" + p.apiKey
-
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return "", &ProviderError{Provider: "gemini", Message: "failed to create request", Err: err}
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return "", &ProviderError{Provider: "gemini", Message: "request failed", Err: err}
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", &ProviderError{Provider: "gemini", Message: "failed to read response", Err: err}
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return "", &ProviderError{
-			Provider: "gemini",
-			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
-		}
+		return "", err
 	}
 
 	var geminiResp geminiResponse
-	if err := json.Unmarshal(respBody, &geminiResp); err != nil {
+	if err := json.Unmarshal(resp.Body, &geminiResp); err != nil {
 		return "", &ProviderError{Provider: "gemini", Message: "failed to parse response", Err: err}
 	}
 
@@ -204,6 +157,18 @@ func (p *GeminiProvider) AnalyzeDiff(ctx context.Context, system, user string) (
 	}
 
 	return geminiResp.Candidates[0].Content.Parts[0].Text, nil
+}
+
+// apiURL returns the full API URL with model substituted.
+func (p *GeminiProvider) apiURL() string {
+	return fmt.Sprintf(p.baseURL, p.model)
+}
+
+func (p *GeminiProvider) headers() map[string]string {
+	return map[string]string{
+		"Content-Type":  "application/json",
+		"x-goog-api-key": p.apiKey,
+	}
 }
 
 type geminiRequest struct {
