@@ -69,7 +69,6 @@ func run() (exitCode int) {
 	}
 
 	if flags.upgrade {
-		fmt.Println("🔄 Checking for updates...")
 		result := updater.Upgrade(Version)
 		fmt.Println(updater.FormatUpgradeResult(result))
 		if result.Success {

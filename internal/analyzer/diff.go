@@ -107,15 +107,15 @@ func GetDiff(req *DiffRequest) (*DiffResult, error) {
 
 // BuildDiffPrompt creates the LLM prompt for diff analysis.
 func BuildDiffPrompt(result *DiffResult) (system, user string) {
-	system = `You are a code change analyst. Your job is to analyze git diffs and explain what changed in clear, human-readable language.
+	system = `You are a changelog writer. Given a git diff, produce a concise changelog.
 
-Guidelines:
-- Focus on the semantic meaning of changes, not just syntax
-- Group related changes together
-- Identify the type of change (bug fix, new feature, refactoring, etc.)
-- Note any potential issues or improvements
-- Use clear, concise language
-- Format your response with markdown for readability`
+Rules:
+- One line per logical change
+- Each line starts with a verb in past tense (e.g. "Removed", "Added", "Renamed", "Fixed")
+- Describe WHAT changed, not why or what it might affect
+- No headers, no sections, no commentary, no recommendations
+- If the diff contains a single logical change, output a single line
+- Do not wrap output in markdown code blocks`
 
 	var refRange string
 	if result.FromRef == "" && result.ToRef == "HEAD" {
@@ -133,7 +133,7 @@ Stats: %s
 Diff:
 %s
 
-Provide a clear explanation of what changed and why these changes matter.`,
+Write a concise changelog for this diff.`,
 		result.FilePath,
 		refRange,
 		result.NumStats,

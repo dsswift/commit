@@ -57,7 +57,7 @@ func TestBuildDiffPrompt_SystemPrompt(t *testing.T) {
 		t.Error("expected non-empty system prompt")
 	}
 
-	if !strings.Contains(system, "code change analyst") {
+	if !strings.Contains(system, "changelog writer") {
 		t.Error("system prompt should mention role")
 	}
 
