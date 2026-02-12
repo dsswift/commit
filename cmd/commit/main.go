@@ -93,7 +93,7 @@ func run() int {
 	}
 
 	// Run cleanup in background
-	go logging.CleanupOldLogs()
+	go func() { _ = logging.CleanupOldLogs() }()
 
 	// Start version check in background
 	versionChan := make(chan *updater.VersionInfo, 1)
@@ -119,7 +119,7 @@ func run() int {
 		ExitCode:       result.ExitCode,
 		CommitsCreated: len(result.CommitsCreated),
 	}
-	logging.WriteRegistryEntry(entry)
+	_ = logging.WriteRegistryEntry(entry)
 
 	// Log completion
 	if logger != nil {
@@ -399,7 +399,7 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 		return result
 	}
 
-	printSuccess(fmt.Sprintf("Analysis complete"))
+	printSuccess("Analysis complete")
 
 	// Log LLM response
 	if logger != nil {
@@ -700,8 +700,8 @@ func handleConfigError(err error) {
 		fmt.Println("   📖 Documentation: https://github.com/dsswift/commit#configuration")
 
 		// Try to create default config
-		config.EnsureConfigDir()
-		config.CreateDefaultConfig()
+		_ = config.EnsureConfigDir()
+		_ = config.CreateDefaultConfig()
 
 	case *config.ProviderNotConfiguredError:
 		printStepError("No provider configured")

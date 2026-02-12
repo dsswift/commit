@@ -73,8 +73,8 @@ func TestSelectModel_GetParentHash(t *testing.T) {
 	m := &SelectModel{}
 	// Change to repo dir for git command
 	oldDir, _ := os.Getwd()
-	os.Chdir(repoDir)
-	defer os.Chdir(oldDir)
+	_ = os.Chdir(repoDir)
+	defer func() { _ = os.Chdir(oldDir) }()
 
 	got := m.getParentHash(childHash)
 	if got != parentHash {
@@ -93,8 +93,8 @@ func TestSelectModel_GetParentHash_RootCommit(t *testing.T) {
 
 	m := &SelectModel{}
 	oldDir, _ := os.Getwd()
-	os.Chdir(repoDir)
-	defer os.Chdir(oldDir)
+	_ = os.Chdir(repoDir)
+	defer func() { _ = os.Chdir(oldDir) }()
 
 	got := m.getParentHash(rootHash)
 	if got != "" {

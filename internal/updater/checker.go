@@ -89,7 +89,7 @@ func checkVersion(currentVersion string, skipCache bool) *VersionInfo {
 	}
 
 	// Update cache
-	saveCache(&VersionCache{
+	_ = saveCache(&VersionCache{
 		CheckedAt:     time.Now(),
 		LatestVersion: release.TagName,
 		ReleaseURL:    release.HTMLURL,
@@ -205,10 +205,10 @@ func isNewerVersion(latest, current string) bool {
 		var latestNum, currentNum int
 
 		if i < len(latestParts) {
-			fmt.Sscanf(latestParts[i], "%d", &latestNum)
+			_, _ = fmt.Sscanf(latestParts[i], "%d", &latestNum)
 		}
 		if i < len(currentParts) {
-			fmt.Sscanf(currentParts[i], "%d", &currentNum)
+			_, _ = fmt.Sscanf(currentParts[i], "%d", &currentNum)
 		}
 
 		if latestNum > currentNum {

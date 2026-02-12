@@ -83,8 +83,8 @@ func TestLoadUserConfig_MissingProvider(t *testing.T) {
 
 	// Create config dir and file without provider
 	configDir := filepath.Join(tmpDir, ConfigDir)
-	os.MkdirAll(configDir, 0700)
-	os.WriteFile(filepath.Join(configDir, EnvFile), []byte("ANTHROPIC_API_KEY=test"), 0600)
+	_ = os.MkdirAll(configDir, 0700)
+	_ = os.WriteFile(filepath.Join(configDir, EnvFile), []byte("ANTHROPIC_API_KEY=test"), 0600)
 
 	_, err := LoadUserConfig()
 	if err == nil {
@@ -104,8 +104,8 @@ func TestLoadUserConfig_InvalidProvider(t *testing.T) {
 	defer os.Setenv("HOME", origHome)
 
 	configDir := filepath.Join(tmpDir, ConfigDir)
-	os.MkdirAll(configDir, 0700)
-	os.WriteFile(filepath.Join(configDir, EnvFile), []byte("COMMIT_PROVIDER=invalid"), 0600)
+	_ = os.MkdirAll(configDir, 0700)
+	_ = os.WriteFile(filepath.Join(configDir, EnvFile), []byte("COMMIT_PROVIDER=invalid"), 0600)
 
 	_, err := LoadUserConfig()
 	if err == nil {
@@ -127,8 +127,8 @@ func TestLoadUserConfig_MissingAPIKey(t *testing.T) {
 	defer os.Setenv("HOME", origHome)
 
 	configDir := filepath.Join(tmpDir, ConfigDir)
-	os.MkdirAll(configDir, 0700)
-	os.WriteFile(filepath.Join(configDir, EnvFile), []byte("COMMIT_PROVIDER=anthropic"), 0600)
+	_ = os.MkdirAll(configDir, 0700)
+	_ = os.WriteFile(filepath.Join(configDir, EnvFile), []byte("COMMIT_PROVIDER=anthropic"), 0600)
 
 	_, err := LoadUserConfig()
 	if err == nil {
@@ -155,12 +155,12 @@ func TestLoadUserConfig_ValidAnthropicConfig(t *testing.T) {
 	defer os.Setenv("HOME", origHome)
 
 	configDir := filepath.Join(tmpDir, ConfigDir)
-	os.MkdirAll(configDir, 0700)
+	_ = os.MkdirAll(configDir, 0700)
 	envContent := `COMMIT_PROVIDER=anthropic
 ANTHROPIC_API_KEY=sk-ant-test
 COMMIT_MODEL=claude-3-haiku
 COMMIT_DRY_RUN=true`
-	os.WriteFile(filepath.Join(configDir, EnvFile), []byte(envContent), 0600)
+	_ = os.WriteFile(filepath.Join(configDir, EnvFile), []byte(envContent), 0600)
 
 	config, err := LoadUserConfig()
 	if err != nil {
@@ -189,12 +189,12 @@ func TestLoadUserConfig_ValidAzureFoundryConfig(t *testing.T) {
 	defer os.Setenv("HOME", origHome)
 
 	configDir := filepath.Join(tmpDir, ConfigDir)
-	os.MkdirAll(configDir, 0700)
+	_ = os.MkdirAll(configDir, 0700)
 	envContent := `COMMIT_PROVIDER=azure-foundry
 AZURE_FOUNDRY_ENDPOINT=https://test.openai.azure.com
 AZURE_FOUNDRY_API_KEY=test-key
 AZURE_FOUNDRY_DEPLOYMENT=gpt-4`
-	os.WriteFile(filepath.Join(configDir, EnvFile), []byte(envContent), 0600)
+	_ = os.WriteFile(filepath.Join(configDir, EnvFile), []byte(envContent), 0600)
 
 	config, err := LoadUserConfig()
 	if err != nil {
@@ -281,10 +281,10 @@ func TestCreateDefaultConfig_DoesNotOverwrite(t *testing.T) {
 
 	// Create existing config
 	configDir := filepath.Join(tmpDir, ConfigDir)
-	os.MkdirAll(configDir, 0700)
+	_ = os.MkdirAll(configDir, 0700)
 	existingContent := "EXISTING=content"
 	envPath := filepath.Join(configDir, EnvFile)
-	os.WriteFile(envPath, []byte(existingContent), 0600)
+	_ = os.WriteFile(envPath, []byte(existingContent), 0600)
 
 	// Try to create default config
 	err := CreateDefaultConfig()
@@ -348,8 +348,8 @@ COMMIT_DEFAULT_MODE=invalid`,
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			configDir := filepath.Join(tmpDir, ConfigDir)
-			os.MkdirAll(configDir, 0700)
-			os.WriteFile(filepath.Join(configDir, EnvFile), []byte(tt.envContent), 0600)
+			_ = os.MkdirAll(configDir, 0700)
+			_ = os.WriteFile(filepath.Join(configDir, EnvFile), []byte(tt.envContent), 0600)
 
 			config, err := LoadUserConfig()
 
@@ -380,11 +380,11 @@ func TestSetConfigValue(t *testing.T) {
 	defer os.Setenv("HOME", origHome)
 
 	configDir := filepath.Join(tmpDir, ConfigDir)
-	os.MkdirAll(configDir, 0700)
+	_ = os.MkdirAll(configDir, 0700)
 	envPath := filepath.Join(configDir, EnvFile)
 
 	t.Run("add new key to empty file", func(t *testing.T) {
-		os.WriteFile(envPath, []byte(""), 0600)
+		_ = os.WriteFile(envPath, []byte(""), 0600)
 
 		err := SetConfigValue("COMMIT_DEFAULT_MODE", "single")
 		if err != nil {
@@ -398,7 +398,7 @@ func TestSetConfigValue(t *testing.T) {
 	})
 
 	t.Run("add new key to existing file", func(t *testing.T) {
-		os.WriteFile(envPath, []byte("COMMIT_PROVIDER=anthropic\n"), 0600)
+		_ = os.WriteFile(envPath, []byte("COMMIT_PROVIDER=anthropic\n"), 0600)
 
 		err := SetConfigValue("COMMIT_DEFAULT_MODE", "smart")
 		if err != nil {
@@ -415,7 +415,7 @@ func TestSetConfigValue(t *testing.T) {
 	})
 
 	t.Run("update existing key", func(t *testing.T) {
-		os.WriteFile(envPath, []byte("COMMIT_PROVIDER=anthropic\nCOMMIT_DEFAULT_MODE=smart\n"), 0600)
+		_ = os.WriteFile(envPath, []byte("COMMIT_PROVIDER=anthropic\nCOMMIT_DEFAULT_MODE=smart\n"), 0600)
 
 		err := SetConfigValue("COMMIT_DEFAULT_MODE", "single")
 		if err != nil {

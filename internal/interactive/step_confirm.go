@@ -22,9 +22,6 @@ type ConfirmModel struct {
 	editingSquashMsg bool
 	squashTextArea   textarea.Model
 	squashParentIdx  int
-
-	// State
-	executing bool
 }
 
 // ConfirmDoneMsg is sent when execution is complete or cancelled.

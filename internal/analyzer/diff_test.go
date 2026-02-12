@@ -121,12 +121,12 @@ func TestGetDiff_Integration(t *testing.T) {
 
 	// Create initial file
 	filePath := filepath.Join(tmpDir, "test.txt")
-	os.WriteFile(filePath, []byte("line 1\n"), 0644)
+	_ = os.WriteFile(filePath, []byte("line 1\n"), 0644)
 	runGit(t, tmpDir, "add", "test.txt")
 	runGit(t, tmpDir, "commit", "-m", "initial")
 
 	// Modify file
-	os.WriteFile(filePath, []byte("line 1\nline 2\n"), 0644)
+	_ = os.WriteFile(filePath, []byte("line 1\nline 2\n"), 0644)
 
 	// Get diff
 	req := BuildDiffRequest(tmpDir, "test.txt", "", "")
@@ -159,7 +159,7 @@ func TestGetDiff_NoDifference(t *testing.T) {
 
 	// Create and commit file
 	filePath := filepath.Join(tmpDir, "test.txt")
-	os.WriteFile(filePath, []byte("content\n"), 0644)
+	_ = os.WriteFile(filePath, []byte("content\n"), 0644)
 	runGit(t, tmpDir, "add", "test.txt")
 	runGit(t, tmpDir, "commit", "-m", "initial")
 
@@ -179,7 +179,8 @@ func TestNewDiffAnalyzer(t *testing.T) {
 	analyzer := NewDiffAnalyzer("/repo")
 
 	if analyzer == nil {
-		t.Error("expected non-nil analyzer")
+		t.Fatal("expected non-nil analyzer")
+		return
 	}
 
 	if analyzer.gitRoot != "/repo" {

@@ -165,7 +165,7 @@ func TestGetRecentExecutions(t *testing.T) {
 			Version:        "1.0.0",
 			CommitsCreated: i,
 		}
-		WriteRegistryEntry(entry)
+		_ = WriteRegistryEntry(entry)
 	}
 
 	// Get recent 3
@@ -197,7 +197,7 @@ func TestGetRecentExecutions_NoFile(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if recent != nil && len(recent) != 0 {
+	if len(recent) != 0 {
 		t.Errorf("expected empty result, got %v", recent)
 	}
 }
@@ -211,18 +211,18 @@ func TestCleanupOldLogs(t *testing.T) {
 
 	// Create executions directory
 	execDir := filepath.Join(tmpDir, ".commit-tool", "logs", "executions")
-	os.MkdirAll(execDir, 0700)
+	_ = os.MkdirAll(execDir, 0700)
 
 	// Create old and new log files
 	oldFile := filepath.Join(execDir, "old_exec.jsonl")
 	newFile := filepath.Join(execDir, "new_exec.jsonl")
 
-	os.WriteFile(oldFile, []byte("old"), 0600)
-	os.WriteFile(newFile, []byte("new"), 0600)
+	_ = os.WriteFile(oldFile, []byte("old"), 0600)
+	_ = os.WriteFile(newFile, []byte("new"), 0600)
 
 	// Set old file's mod time to 60 days ago
 	oldTime := time.Now().AddDate(0, 0, -60)
-	os.Chtimes(oldFile, oldTime, oldTime)
+	_ = os.Chtimes(oldFile, oldTime, oldTime)
 
 	// Run cleanup
 	err := CleanupOldLogs()
@@ -271,7 +271,7 @@ func TestRegistryRotation(t *testing.T) {
 
 	// Create small file (under threshold)
 	smallFile := filepath.Join(tmpDir, "small.jsonl")
-	os.WriteFile(smallFile, []byte("small"), 0600)
+	_ = os.WriteFile(smallFile, []byte("small"), 0600)
 
 	if shouldRotate(smallFile) {
 		t.Error("should not rotate small file")

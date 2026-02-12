@@ -96,8 +96,8 @@ func GetDiff(req *DiffRequest) (*DiffResult, error) {
 	if len(numstatOutput) > 0 {
 		parts := strings.Fields(string(numstatOutput))
 		if len(parts) >= 2 {
-			fmt.Sscanf(parts[0], "%d", &result.LinesAdded)
-			fmt.Sscanf(parts[1], "%d", &result.LinesRemove)
+			_, _ = fmt.Sscanf(parts[0], "%d", &result.LinesAdded)
+			_, _ = fmt.Sscanf(parts[1], "%d", &result.LinesRemove)
 			result.NumStats = fmt.Sprintf("+%d -%d", result.LinesAdded, result.LinesRemove)
 		}
 	}

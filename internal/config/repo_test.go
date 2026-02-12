@@ -100,7 +100,7 @@ func TestLoadRepoConfig_SortsBySpecificity(t *testing.T) {
 }`
 
 	configPath := filepath.Join(tmpDir, RepoConfigFile)
-	os.WriteFile(configPath, []byte(configContent), 0644)
+	_ = os.WriteFile(configPath, []byte(configContent), 0644)
 
 	config, err := LoadRepoConfig(tmpDir)
 	if err != nil {
@@ -133,7 +133,7 @@ func TestLoadRepoConfig_NormalizesTrailingSlash(t *testing.T) {
 }`
 
 	configPath := filepath.Join(tmpDir, RepoConfigFile)
-	os.WriteFile(configPath, []byte(configContent), 0644)
+	_ = os.WriteFile(configPath, []byte(configContent), 0644)
 
 	config, err := LoadRepoConfig(tmpDir)
 	if err != nil {
@@ -154,7 +154,7 @@ func TestLoadRepoConfig_InvalidJSON(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	configPath := filepath.Join(tmpDir, RepoConfigFile)
-	os.WriteFile(configPath, []byte("not valid json"), 0644)
+	_ = os.WriteFile(configPath, []byte("not valid json"), 0644)
 
 	_, err = LoadRepoConfig(tmpDir)
 	if err == nil {
@@ -177,7 +177,7 @@ func TestLoadRepoConfig_DuplicatePaths(t *testing.T) {
 }`
 
 	configPath := filepath.Join(tmpDir, RepoConfigFile)
-	os.WriteFile(configPath, []byte(configContent), 0644)
+	_ = os.WriteFile(configPath, []byte(configContent), 0644)
 
 	_, err = LoadRepoConfig(tmpDir)
 	if err == nil {
@@ -199,7 +199,7 @@ func TestLoadRepoConfig_EmptyScopeName(t *testing.T) {
 }`
 
 	configPath := filepath.Join(tmpDir, RepoConfigFile)
-	os.WriteFile(configPath, []byte(configContent), 0644)
+	_ = os.WriteFile(configPath, []byte(configContent), 0644)
 
 	_, err = LoadRepoConfig(tmpDir)
 	if err == nil {
@@ -352,7 +352,7 @@ func TestCreateDefaultRepoConfig_DoesNotOverwrite(t *testing.T) {
 	// Create existing config
 	existingContent := `{"scopes": [{"path": "existing/", "scope": "existing"}]}`
 	configPath := filepath.Join(tmpDir, RepoConfigFile)
-	os.WriteFile(configPath, []byte(existingContent), 0644)
+	_ = os.WriteFile(configPath, []byte(existingContent), 0644)
 
 	// Try to create default
 	err = CreateDefaultRepoConfig(tmpDir)

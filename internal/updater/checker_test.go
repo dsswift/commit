@@ -103,7 +103,7 @@ func TestCacheSaveAndLoad(t *testing.T) {
 
 	// Create config directory
 	configDir := filepath.Join(tmpDir, ".commit-tool")
-	os.MkdirAll(configDir, 0700)
+	_ = os.MkdirAll(configDir, 0700)
 
 	cache := &VersionCache{
 		CheckedAt:     time.Now(),
@@ -152,14 +152,14 @@ func TestCheckVersion_UsesCache(t *testing.T) {
 
 	// Create config directory and cache
 	configDir := filepath.Join(tmpDir, ".commit-tool")
-	os.MkdirAll(configDir, 0700)
+	_ = os.MkdirAll(configDir, 0700)
 
 	cache := &VersionCache{
 		CheckedAt:     time.Now(), // Recent cache
 		LatestVersion: "v2.0.0",
 		ReleaseURL:    "https://example.com",
 	}
-	saveCache(cache)
+	_ = saveCache(cache)
 
 	// Check version should use cache (not make HTTP request)
 	info := CheckVersion("v1.0.0")
@@ -182,14 +182,14 @@ func TestCheckVersion_ExpiredCache(t *testing.T) {
 
 	// Create config directory and expired cache
 	configDir := filepath.Join(tmpDir, ".commit-tool")
-	os.MkdirAll(configDir, 0700)
+	_ = os.MkdirAll(configDir, 0700)
 
 	cache := &VersionCache{
 		CheckedAt:     time.Now().Add(-48 * time.Hour), // Expired
 		LatestVersion: "v2.0.0",
 		ReleaseURL:    "https://example.com",
 	}
-	saveCache(cache)
+	_ = saveCache(cache)
 
 	// Check version - cache is expired, will try to fetch
 	// (will fail since no network, but should not panic)
@@ -210,14 +210,14 @@ func TestCheckVersionFresh_BypassesCache(t *testing.T) {
 
 	// Create config directory and fresh cache
 	configDir := filepath.Join(tmpDir, ".commit-tool")
-	os.MkdirAll(configDir, 0700)
+	_ = os.MkdirAll(configDir, 0700)
 
 	cache := &VersionCache{
 		CheckedAt:     time.Now(), // Recent cache - would normally be used
 		LatestVersion: "v2.0.0",
 		ReleaseURL:    "https://example.com",
 	}
-	saveCache(cache)
+	_ = saveCache(cache)
 
 	// CheckVersionFresh should bypass the cache and try to fetch
 	// (will fail since no network mock, so LatestVersion will be empty)

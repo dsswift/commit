@@ -32,11 +32,11 @@ func testRepo(t *testing.T) (string, func()) {
 	// Configure git user for commits
 	cmd = exec.Command("git", "config", "user.email", "test@test.com")
 	cmd.Dir = tmpDir
-	cmd.Run()
+	_ = cmd.Run()
 
 	cmd = exec.Command("git", "config", "user.name", "Test User")
 	cmd.Dir = tmpDir
-	cmd.Run()
+	_ = cmd.Run()
 
 	return tmpDir, cleanup
 }
@@ -81,7 +81,7 @@ func TestFindGitRoot(t *testing.T) {
 
 	// Create a subdirectory
 	subDir := filepath.Join(repoDir, "sub", "dir")
-	os.MkdirAll(subDir, 0755)
+	_ = os.MkdirAll(subDir, 0755)
 
 	// Should find root from subdirectory
 	root, err := FindGitRoot(subDir)
@@ -393,7 +393,7 @@ func TestStager_UnstageAll(t *testing.T) {
 	createFile(t, repoDir, "file2.txt", "content2")
 
 	stager := NewStager(repoDir)
-	stager.StageFiles([]string{"file1.txt", "file2.txt"})
+	_ = stager.StageFiles([]string{"file1.txt", "file2.txt"})
 
 	err := stager.UnstageAll()
 	if err != nil {
@@ -418,7 +418,7 @@ func TestStager_HasStagedChanges(t *testing.T) {
 	}
 
 	createFile(t, repoDir, "file.txt", "content")
-	stager.StageFiles([]string{"file.txt"})
+	_ = stager.StageFiles([]string{"file.txt"})
 
 	has, _ = stager.HasStagedChanges()
 	if !has {
@@ -433,7 +433,7 @@ func TestCommitter_Commit(t *testing.T) {
 	createFile(t, repoDir, "file.txt", "content")
 
 	stager := NewStager(repoDir)
-	stager.StageFiles([]string{"file.txt"})
+	_ = stager.StageFiles([]string{"file.txt"})
 
 	committer := NewCommitter(repoDir)
 	hash, err := committer.Commit("test: add file")
@@ -459,7 +459,7 @@ func TestCommitter_CommitWithScope(t *testing.T) {
 	createFile(t, repoDir, "file.txt", "content")
 
 	stager := NewStager(repoDir)
-	stager.StageFiles([]string{"file.txt"})
+	_ = stager.StageFiles([]string{"file.txt"})
 
 	committer := NewCommitter(repoDir)
 	scope := "api"
@@ -485,7 +485,7 @@ func TestCommitter_CommitWithScope_NoScope(t *testing.T) {
 	createFile(t, repoDir, "file.txt", "content")
 
 	stager := NewStager(repoDir)
-	stager.StageFiles([]string{"file.txt"})
+	_ = stager.StageFiles([]string{"file.txt"})
 
 	committer := NewCommitter(repoDir)
 	hash, err := committer.CommitWithScope("docs", nil, "update readme")
@@ -738,7 +738,7 @@ func TestStager_StageFiles_EmptyDirectory(t *testing.T) {
 
 	// Create an empty directory
 	emptyDir := filepath.Join(repoDir, "empty")
-	os.MkdirAll(emptyDir, 0755)
+	_ = os.MkdirAll(emptyDir, 0755)
 
 	stager := NewStager(repoDir)
 
