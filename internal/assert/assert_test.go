@@ -124,7 +124,7 @@ func TestDirExists(t *testing.T) {
 
 	// Test that a file is not treated as a directory
 	tmpFile := filepath.Join(tmpDir, "file.txt")
-	os.WriteFile(tmpFile, []byte("test"), 0644)
+	_ = os.WriteFile(tmpFile, []byte("test"), 0644)
 
 	assertPanics(t, "DirExists(file)", func() {
 		DirExists(tmpFile, "should panic for file")

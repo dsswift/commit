@@ -70,8 +70,8 @@ func (l *ExecutionLogger) Log(event string, data any) {
 		return
 	}
 
-	l.file.Write(jsonBytes)
-	l.file.Write([]byte("\n"))
+	_, _ = l.file.Write(jsonBytes)
+	_, _ = l.file.Write([]byte("\n"))
 }
 
 // LogStart logs the start of execution.

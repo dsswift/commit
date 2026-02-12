@@ -31,11 +31,11 @@ func testRepo(t *testing.T) (string, func()) {
 
 	cmd = exec.Command("git", "config", "user.email", "test@test.com")
 	cmd.Dir = tmpDir
-	cmd.Run()
+	_ = cmd.Run()
 
 	cmd = exec.Command("git", "config", "user.name", "Test User")
 	cmd.Dir = tmpDir
-	cmd.Run()
+	_ = cmd.Run()
 
 	return tmpDir, cleanup
 }
@@ -44,8 +44,8 @@ func createFile(t *testing.T, repoDir, filename, content string) {
 	t.Helper()
 	path := filepath.Join(repoDir, filename)
 	dir := filepath.Dir(path)
-	os.MkdirAll(dir, 0755)
-	os.WriteFile(path, []byte(content), 0644)
+	_ = os.MkdirAll(dir, 0755)
+	_ = os.WriteFile(path, []byte(content), 0644)
 }
 
 func gitAdd(t *testing.T, repoDir string, files ...string) {
@@ -53,14 +53,14 @@ func gitAdd(t *testing.T, repoDir string, files ...string) {
 	args := append([]string{"add"}, files...)
 	cmd := exec.Command("git", args...)
 	cmd.Dir = repoDir
-	cmd.Run()
+	_ = cmd.Run()
 }
 
 func gitCommit(t *testing.T, repoDir, message string) {
 	t.Helper()
 	cmd := exec.Command("git", "commit", "-m", message)
 	cmd.Dir = repoDir
-	cmd.Run()
+	_ = cmd.Run()
 }
 
 func TestContextBuilder_Build_NoChanges(t *testing.T) {

@@ -13,8 +13,8 @@ func TestValidator_Validate_ValidPlan(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// Create test files
-	os.WriteFile(filepath.Join(tmpDir, "file1.go"), []byte("content"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "file2.go"), []byte("content"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "file1.go"), []byte("content"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "file2.go"), []byte("content"), 0644)
 
 	config := &types.RepoConfig{
 		CommitTypes: types.CommitTypeConfig{
@@ -81,7 +81,7 @@ func TestValidator_Validate_EmptyCommits(t *testing.T) {
 func TestValidator_Validate_InvalidCommitType(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "planner-test-*")
 	defer os.RemoveAll(tmpDir)
-	os.WriteFile(filepath.Join(tmpDir, "file.go"), []byte("content"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "file.go"), []byte("content"), 0644)
 
 	config := &types.RepoConfig{
 		CommitTypes: types.CommitTypeConfig{
@@ -124,7 +124,7 @@ func TestValidator_Validate_InvalidCommitType(t *testing.T) {
 func TestValidator_Validate_MessageTooLong(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "planner-test-*")
 	defer os.RemoveAll(tmpDir)
-	os.WriteFile(filepath.Join(tmpDir, "file.go"), []byte("content"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "file.go"), []byte("content"), 0644)
 
 	config := &types.RepoConfig{}
 	validator := NewValidator(tmpDir, config, []string{"file.go"})
@@ -149,7 +149,7 @@ func TestValidator_Validate_MessageTooLong(t *testing.T) {
 func TestValidator_Validate_EmptyMessage(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "planner-test-*")
 	defer os.RemoveAll(tmpDir)
-	os.WriteFile(filepath.Join(tmpDir, "file.go"), []byte("content"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "file.go"), []byte("content"), 0644)
 
 	config := &types.RepoConfig{}
 	validator := NewValidator(tmpDir, config, []string{"file.go"})
@@ -219,7 +219,7 @@ func TestValidator_Validate_NonExistentFile(t *testing.T) {
 func TestValidator_Validate_DuplicateFiles(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "planner-test-*")
 	defer os.RemoveAll(tmpDir)
-	os.WriteFile(filepath.Join(tmpDir, "file.go"), []byte("content"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "file.go"), []byte("content"), 0644)
 
 	config := &types.RepoConfig{}
 	validator := NewValidator(tmpDir, config, []string{"file.go"})
@@ -249,7 +249,7 @@ func TestValidator_Validate_DuplicateFiles(t *testing.T) {
 func TestValidateAndFix_TruncatesLongMessage(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "planner-test-*")
 	defer os.RemoveAll(tmpDir)
-	os.WriteFile(filepath.Join(tmpDir, "file.go"), []byte("content"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "file.go"), []byte("content"), 0644)
 
 	config := &types.RepoConfig{}
 	validator := NewValidator(tmpDir, config, []string{"file.go"})
@@ -282,9 +282,9 @@ func TestValidateAndFix_TruncatesLongMessage(t *testing.T) {
 func TestValidateAndFix_MergesOverlappingCommits(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "planner-test-*")
 	defer os.RemoveAll(tmpDir)
-	os.WriteFile(filepath.Join(tmpDir, "shared.go"), []byte("content"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "only_a.go"), []byte("content"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "only_b.go"), []byte("content"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "shared.go"), []byte("content"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "only_a.go"), []byte("content"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "only_b.go"), []byte("content"), 0644)
 
 	config := &types.RepoConfig{}
 	validator := NewValidator(tmpDir, config, []string{"shared.go", "only_a.go", "only_b.go"})

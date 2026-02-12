@@ -32,11 +32,11 @@ func testRepo(t *testing.T) (string, func()) {
 	// Configure git user
 	cmd = exec.Command("git", "config", "user.email", "test@test.com")
 	cmd.Dir = tmpDir
-	cmd.Run()
+	_ = cmd.Run()
 
 	cmd = exec.Command("git", "config", "user.name", "Test User")
 	cmd.Dir = tmpDir
-	cmd.Run()
+	_ = cmd.Run()
 
 	return tmpDir, cleanup
 }
@@ -99,29 +99,6 @@ func getCommitMessages(t *testing.T, repoDir string) []string {
 		return nil
 	}
 	return lines
-}
-
-// getCommitCount returns the number of commits
-func getCommitCount(t *testing.T, repoDir string) int {
-	t.Helper()
-	cmd := exec.Command("git", "rev-list", "--count", "HEAD")
-	cmd.Dir = repoDir
-	out, err := cmd.Output()
-	if err != nil {
-		// No commits yet
-		return 0
-	}
-	count := strings.TrimSpace(string(out))
-	var n int
-	if _, err := strings.NewReader(count).Read([]byte{byte(n)}); err == nil {
-		// Simple parse
-		for _, c := range count {
-			if c >= '0' && c <= '9' {
-				n = n*10 + int(c-'0')
-			}
-		}
-	}
-	return n
 }
 
 func TestRebaser_Execute_PickAll(t *testing.T) {

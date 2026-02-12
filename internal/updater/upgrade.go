@@ -110,7 +110,7 @@ func Upgrade(currentVersion string) *UpgradeResult {
 	}
 
 	// Update cache
-	saveCache(&VersionCache{
+	_ = saveCache(&VersionCache{
 		CheckedAt:     time.Now(),
 		LatestVersion: release.TagName,
 		ReleaseURL:    release.HTMLURL,

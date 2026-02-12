@@ -37,7 +37,7 @@ func GenerateExecutionID() string {
 
 	// Generate random suffix
 	randBytes := make([]byte, 3)
-	rand.Read(randBytes)
+	_, _ = rand.Read(randBytes)
 	randSuffix := hex.EncodeToString(randBytes)
 
 	return fmt.Sprintf("exec_%s_%s", now.Format("20060102_150405"), randSuffix)
@@ -92,8 +92,8 @@ func rotateRegistry(path string) {
 	os.Remove(path + ".2")
 
 	// Rotate existing backups
-	os.Rename(path+".1", path+".2")
-	os.Rename(path, path+".1")
+	_ = os.Rename(path+".1", path+".2")
+	_ = os.Rename(path, path+".1")
 }
 
 // CleanupOldLogs removes execution logs older than retention period.

@@ -173,7 +173,7 @@ func newTestServer(status int, body string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
-		w.Write([]byte(body))
+		_, _ = w.Write([]byte(body))
 	}))
 }
 
@@ -837,7 +837,7 @@ func TestAnthropicProvider_SendsCorrectHeaders(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedHeaders = r.Header.Clone()
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(anthropicSuccessBody(validCommitPlanJSON)))
+		_, _ = w.Write([]byte(anthropicSuccessBody(validCommitPlanJSON)))
 	}))
 	defer server.Close()
 
@@ -860,7 +860,7 @@ func TestOpenAIProvider_SendsCorrectHeaders(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedHeaders = r.Header.Clone()
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(openaiSuccessBody(validCommitPlanJSON)))
+		_, _ = w.Write([]byte(openaiSuccessBody(validCommitPlanJSON)))
 	}))
 	defer server.Close()
 
@@ -880,7 +880,7 @@ func TestGrokProvider_SendsCorrectHeaders(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedHeaders = r.Header.Clone()
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(grokSuccessBody(validCommitPlanJSON)))
+		_, _ = w.Write([]byte(grokSuccessBody(validCommitPlanJSON)))
 	}))
 	defer server.Close()
 
@@ -900,7 +900,7 @@ func TestGeminiProvider_SendsCorrectHeaders(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedHeaders = r.Header.Clone()
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(geminiSuccessBody(validCommitPlanJSON)))
+		_, _ = w.Write([]byte(geminiSuccessBody(validCommitPlanJSON)))
 	}))
 	defer server.Close()
 
@@ -922,9 +922,9 @@ func TestGeminiProvider_SendsCorrectHeaders(t *testing.T) {
 func TestAnthropicProvider_SendsCorrectRequestBody(t *testing.T) {
 	var capturedBody anthropicRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&capturedBody)
+		_ = json.NewDecoder(r.Body).Decode(&capturedBody)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(anthropicSuccessBody(validCommitPlanJSON)))
+		_, _ = w.Write([]byte(anthropicSuccessBody(validCommitPlanJSON)))
 	}))
 	defer server.Close()
 
@@ -951,9 +951,9 @@ func TestAnthropicProvider_SendsCorrectRequestBody(t *testing.T) {
 func TestOpenAIProvider_SendsCorrectRequestBody(t *testing.T) {
 	var capturedBody openaiRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&capturedBody)
+		_ = json.NewDecoder(r.Body).Decode(&capturedBody)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(openaiSuccessBody(validCommitPlanJSON)))
+		_, _ = w.Write([]byte(openaiSuccessBody(validCommitPlanJSON)))
 	}))
 	defer server.Close()
 

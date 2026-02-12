@@ -3,7 +3,6 @@ package interactive
 import (
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestRebaser_GenerateTodo(t *testing.T) {
@@ -175,18 +174,6 @@ func TestRebaser_GenerateTodo_UsesOriginalMessage(t *testing.T) {
 	// Todo should use original message
 	if !strings.Contains(todo, "original message") {
 		t.Error("expected todo to contain original message")
-	}
-}
-
-// Helper function to create test commits
-func makeTestCommit(hash, message string) RebaseCommit {
-	return RebaseCommit{
-		Hash:      hash + "000000",
-		ShortHash: hash,
-		Message:   message,
-		Author:    "Test User",
-		Date:      time.Now(),
-		IsPushed:  false,
 	}
 }
 
