@@ -1,13 +1,9 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/dsswift/commit/internal/assert"
@@ -15,16 +11,17 @@ import (
 )
 
 const (
-	anthropicAPIURL     = "https://api.anthropic.com/v1/messages"
-	anthropicAPIVersion = "2023-06-01"
+	anthropicAPIURL       = "https://api.anthropic.com/v1/messages"
+	anthropicAPIVersion   = "2023-06-01"
 	defaultAnthropicModel = "claude-3-5-sonnet-20241022"
 )
 
 // AnthropicProvider implements the Provider interface for Anthropic's Claude.
 type AnthropicProvider struct {
-	apiKey string
-	model  string
-	client *http.Client
+	apiKey  string
+	model   string
+	client  *http.Client
+	baseURL string
 }
 
 // NewAnthropicProvider creates a new Anthropic provider.
@@ -36,8 +33,9 @@ func NewAnthropicProvider(apiKey, model string) (*AnthropicProvider, error) {
 	}
 
 	return &AnthropicProvider{
-		apiKey: apiKey,
-		model:  model,
+		apiKey:  apiKey,
+		model:   model,
+		baseURL: anthropicAPIURL,
 		client: &http.Client{
 			Timeout: 60 * time.Second,
 		},
@@ -70,40 +68,21 @@ func (p *AnthropicProvider) Analyze(ctx context.Context, req *types.AnalysisRequ
 		},
 	}
 
-	bodyBytes, err := json.Marshal(requestBody)
+	resp, err := doRequest(&llmRequest{
+		ctx:      ctx,
+		client:   p.client,
+		method:   "POST",
+		url:      p.baseURL,
+		headers:  p.headers(),
+		body:     requestBody,
+		provider: "anthropic",
+	})
 	if err != nil {
-		return nil, &ProviderError{Provider: "anthropic", Message: "failed to marshal request", Err: err}
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", anthropicAPIURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return nil, &ProviderError{Provider: "anthropic", Message: "failed to create request", Err: err}
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-api-key", p.apiKey)
-	httpReq.Header.Set("anthropic-version", anthropicAPIVersion)
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, &ProviderError{Provider: "anthropic", Message: "request failed", Err: err}
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, &ProviderError{Provider: "anthropic", Message: "failed to read response", Err: err}
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, &ProviderError{
-			Provider: "anthropic",
-			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
-		}
+		return nil, err
 	}
 
 	var anthropicResp anthropicResponse
-	if err := json.Unmarshal(respBody, &anthropicResp); err != nil {
+	if err := json.Unmarshal(resp.Body, &anthropicResp); err != nil {
 		return nil, &ProviderError{Provider: "anthropic", Message: "failed to parse response", Err: err}
 	}
 
@@ -115,14 +94,7 @@ func (p *AnthropicProvider) Analyze(ctx context.Context, req *types.AnalysisRequ
 		return nil, &ProviderError{Provider: "anthropic", Message: "response truncated: exceeded max tokens limit"}
 	}
 
-	content := anthropicResp.Content[0].Text
-
-	// Clean up and parse
-	content = strings.TrimSpace(content)
-	content = strings.TrimPrefix(content, "```json")
-	content = strings.TrimPrefix(content, "```")
-	content = strings.TrimSuffix(content, "```")
-	content = strings.TrimSpace(content)
+	content := cleanContent(anthropicResp.Content[0].Text)
 
 	var plan types.CommitPlan
 	if err := json.Unmarshal([]byte(content), &plan); err != nil {
@@ -143,40 +115,21 @@ func (p *AnthropicProvider) AnalyzeDiff(ctx context.Context, system, user string
 		},
 	}
 
-	bodyBytes, err := json.Marshal(requestBody)
+	resp, err := doRequest(&llmRequest{
+		ctx:      ctx,
+		client:   p.client,
+		method:   "POST",
+		url:      p.baseURL,
+		headers:  p.headers(),
+		body:     requestBody,
+		provider: "anthropic",
+	})
 	if err != nil {
-		return "", &ProviderError{Provider: "anthropic", Message: "failed to marshal request", Err: err}
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", anthropicAPIURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return "", &ProviderError{Provider: "anthropic", Message: "failed to create request", Err: err}
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-api-key", p.apiKey)
-	httpReq.Header.Set("anthropic-version", anthropicAPIVersion)
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return "", &ProviderError{Provider: "anthropic", Message: "request failed", Err: err}
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", &ProviderError{Provider: "anthropic", Message: "failed to read response", Err: err}
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return "", &ProviderError{
-			Provider: "anthropic",
-			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
-		}
+		return "", err
 	}
 
 	var anthropicResp anthropicResponse
-	if err := json.Unmarshal(respBody, &anthropicResp); err != nil {
+	if err := json.Unmarshal(resp.Body, &anthropicResp); err != nil {
 		return "", &ProviderError{Provider: "anthropic", Message: "failed to parse response", Err: err}
 	}
 
@@ -189,6 +142,14 @@ func (p *AnthropicProvider) AnalyzeDiff(ctx context.Context, system, user string
 	}
 
 	return anthropicResp.Content[0].Text, nil
+}
+
+func (p *AnthropicProvider) headers() map[string]string {
+	return map[string]string{
+		"Content-Type":      "application/json",
+		"x-api-key":         p.apiKey,
+		"anthropic-version": anthropicAPIVersion,
+	}
 }
 
 type anthropicRequest struct {

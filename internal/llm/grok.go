@@ -1,13 +1,9 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/dsswift/commit/internal/assert"
@@ -15,15 +11,16 @@ import (
 )
 
 const (
-	grokAPIURL     = "https://api.x.ai/v1/chat/completions"
+	grokAPIURL       = "https://api.x.ai/v1/chat/completions"
 	defaultGrokModel = "grok-beta"
 )
 
 // GrokProvider implements the Provider interface for xAI's Grok.
 type GrokProvider struct {
-	apiKey string
-	model  string
-	client *http.Client
+	apiKey  string
+	model   string
+	client  *http.Client
+	baseURL string
 }
 
 // NewGrokProvider creates a new Grok provider.
@@ -35,8 +32,9 @@ func NewGrokProvider(apiKey, model string) (*GrokProvider, error) {
 	}
 
 	return &GrokProvider{
-		apiKey: apiKey,
-		model:  model,
+		apiKey:  apiKey,
+		model:   model,
+		baseURL: grokAPIURL,
 		client: &http.Client{
 			Timeout: 60 * time.Second,
 		},
@@ -71,39 +69,21 @@ func (p *GrokProvider) Analyze(ctx context.Context, req *types.AnalysisRequest) 
 		MaxTokens:   8192,
 	}
 
-	bodyBytes, err := json.Marshal(requestBody)
+	resp, err := doRequest(&llmRequest{
+		ctx:      ctx,
+		client:   p.client,
+		method:   "POST",
+		url:      p.baseURL,
+		headers:  p.headers(),
+		body:     requestBody,
+		provider: "grok",
+	})
 	if err != nil {
-		return nil, &ProviderError{Provider: "grok", Message: "failed to marshal request", Err: err}
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", grokAPIURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return nil, &ProviderError{Provider: "grok", Message: "failed to create request", Err: err}
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, &ProviderError{Provider: "grok", Message: "request failed", Err: err}
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, &ProviderError{Provider: "grok", Message: "failed to read response", Err: err}
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, &ProviderError{
-			Provider: "grok",
-			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
-		}
+		return nil, err
 	}
 
 	var grokResp grokResponse
-	if err := json.Unmarshal(respBody, &grokResp); err != nil {
+	if err := json.Unmarshal(resp.Body, &grokResp); err != nil {
 		return nil, &ProviderError{Provider: "grok", Message: "failed to parse response", Err: err}
 	}
 
@@ -115,14 +95,7 @@ func (p *GrokProvider) Analyze(ctx context.Context, req *types.AnalysisRequest) 
 		return nil, &ProviderError{Provider: "grok", Message: "response truncated: exceeded max tokens limit"}
 	}
 
-	content := grokResp.Choices[0].Message.Content
-
-	// Clean up and parse
-	content = strings.TrimSpace(content)
-	content = strings.TrimPrefix(content, "```json")
-	content = strings.TrimPrefix(content, "```")
-	content = strings.TrimSuffix(content, "```")
-	content = strings.TrimSpace(content)
+	content := cleanContent(grokResp.Choices[0].Message.Content)
 
 	var plan types.CommitPlan
 	if err := json.Unmarshal([]byte(content), &plan); err != nil {
@@ -144,39 +117,21 @@ func (p *GrokProvider) AnalyzeDiff(ctx context.Context, system, user string) (st
 		MaxTokens:   8192,
 	}
 
-	bodyBytes, err := json.Marshal(requestBody)
+	resp, err := doRequest(&llmRequest{
+		ctx:      ctx,
+		client:   p.client,
+		method:   "POST",
+		url:      p.baseURL,
+		headers:  p.headers(),
+		body:     requestBody,
+		provider: "grok",
+	})
 	if err != nil {
-		return "", &ProviderError{Provider: "grok", Message: "failed to marshal request", Err: err}
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", grokAPIURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return "", &ProviderError{Provider: "grok", Message: "failed to create request", Err: err}
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return "", &ProviderError{Provider: "grok", Message: "request failed", Err: err}
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", &ProviderError{Provider: "grok", Message: "failed to read response", Err: err}
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return "", &ProviderError{
-			Provider: "grok",
-			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
-		}
+		return "", err
 	}
 
 	var grokResp grokResponse
-	if err := json.Unmarshal(respBody, &grokResp); err != nil {
+	if err := json.Unmarshal(resp.Body, &grokResp); err != nil {
 		return "", &ProviderError{Provider: "grok", Message: "failed to parse response", Err: err}
 	}
 
@@ -189,6 +144,13 @@ func (p *GrokProvider) AnalyzeDiff(ctx context.Context, system, user string) (st
 	}
 
 	return grokResp.Choices[0].Message.Content, nil
+}
+
+func (p *GrokProvider) headers() map[string]string {
+	return map[string]string{
+		"Content-Type":  "application/json",
+		"Authorization": "Bearer " + p.apiKey,
+	}
 }
 
 type grokRequest struct {

@@ -1,11 +1,9 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -23,11 +21,11 @@ const (
 // AzureFoundryProvider implements the Provider interface for Azure AI Foundry.
 // Automatically detects whether to use Anthropic or OpenAI API format based on deployment name.
 type AzureFoundryProvider struct {
-	endpoint   string
-	apiKey     string
-	deployment string
-	model      string
-	client     *http.Client
+	endpoint    string
+	apiKey      string
+	deployment  string
+	model       string
+	client      *http.Client
 	isAnthropic bool
 }
 
@@ -122,42 +120,27 @@ func (p *AzureFoundryProvider) callAnthropicAPI(ctx context.Context, system, use
 		},
 	}
 
-	bodyBytes, err := json.Marshal(requestBody)
-	if err != nil {
-		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to marshal request", Err: err}
-	}
-
 	url := fmt.Sprintf("%s/anthropic/v1/messages", p.endpoint)
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
+	resp, err := doRequest(&llmRequest{
+		ctx:    ctx,
+		client: p.client,
+		method: "POST",
+		url:    url,
+		headers: map[string]string{
+			"Content-Type":      "application/json",
+			"Authorization":     "Bearer " + p.apiKey,
+			"anthropic-version": azureAnthropicAPIVersion,
+		},
+		body:     requestBody,
+		provider: "azure-foundry",
+	})
 	if err != nil {
-		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to create request", Err: err}
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
-	httpReq.Header.Set("anthropic-version", azureAnthropicAPIVersion)
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return "", &ProviderError{Provider: "azure-foundry", Message: "request failed", Err: err}
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to read response", Err: err}
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return "", &ProviderError{
-			Provider: "azure-foundry",
-			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
-		}
+		return "", err
 	}
 
 	var anthropicResp anthropicAPIResponse
-	if err := json.Unmarshal(respBody, &anthropicResp); err != nil {
+	if err := json.Unmarshal(resp.Body, &anthropicResp); err != nil {
 		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to parse response", Err: err}
 	}
 
@@ -183,42 +166,27 @@ func (p *AzureFoundryProvider) callOpenAIAPI(ctx context.Context, system, user s
 		MaxTokens:   8192,
 	}
 
-	bodyBytes, err := json.Marshal(requestBody)
-	if err != nil {
-		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to marshal request", Err: err}
-	}
-
 	url := fmt.Sprintf("%s/openai/deployments/%s/chat/completions?api-version=%s",
 		p.endpoint, p.deployment, azureOpenAIAPIVersion)
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
+	resp, err := doRequest(&llmRequest{
+		ctx:    ctx,
+		client: p.client,
+		method: "POST",
+		url:    url,
+		headers: map[string]string{
+			"Content-Type": "application/json",
+			"api-key":      p.apiKey,
+		},
+		body:     requestBody,
+		provider: "azure-foundry",
+	})
 	if err != nil {
-		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to create request", Err: err}
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("api-key", p.apiKey)
-
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return "", &ProviderError{Provider: "azure-foundry", Message: "request failed", Err: err}
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to read response", Err: err}
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return "", &ProviderError{
-			Provider: "azure-foundry",
-			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
-		}
+		return "", err
 	}
 
 	var openAIResp openAIAPIResponse
-	if err := json.Unmarshal(respBody, &openAIResp); err != nil {
+	if err := json.Unmarshal(resp.Body, &openAIResp); err != nil {
 		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to parse response", Err: err}
 	}
 
@@ -235,11 +203,7 @@ func (p *AzureFoundryProvider) callOpenAIAPI(ctx context.Context, system, user s
 
 // parseCommitPlan extracts a CommitPlan from the LLM response content.
 func parseCommitPlan(content string) (*types.CommitPlan, error) {
-	content = strings.TrimSpace(content)
-	content = strings.TrimPrefix(content, "```json")
-	content = strings.TrimPrefix(content, "```")
-	content = strings.TrimSuffix(content, "```")
-	content = strings.TrimSpace(content)
+	content = cleanContent(content)
 
 	var plan types.CommitPlan
 	if err := json.Unmarshal([]byte(content), &plan); err != nil {
