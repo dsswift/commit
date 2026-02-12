@@ -74,13 +74,10 @@ func (c *Collector) Status() (*types.GitStatus, error) {
 			continue
 		}
 
-		// Porcelain format: XY filename
-		// X = index status, Y = work tree status
 		indexStatus := line[0]
 		workTreeStatus := line[1]
 		filename := strings.TrimSpace(line[3:])
 
-		// Handle renamed files (format: "R  old -> new")
 		if strings.Contains(filename, " -> ") {
 			parts := strings.Split(filename, " -> ")
 			if len(parts) == 2 {
@@ -114,7 +111,6 @@ func (c *Collector) Status() (*types.GitStatus, error) {
 			continue // Skip ignored files
 		}
 
-		// Classify the file based on status codes
 		switch {
 		case entry.indexStatus == 'M' || entry.workTreeStatus == 'M':
 			status.Modified = append(status.Modified, entry.filename)
@@ -501,38 +497,10 @@ func (c *Collector) GetCommitLog(count int) ([]CommitInfo, error) {
 		return nil, fmt.Errorf("failed to get commit log: %w", err)
 	}
 
-	// Get remote tracking info to check pushed status
-	remoteBranches, _ := c.getRemoteBranches()
+	commits := c.parseCommitLog(out)
+	c.batchResolvePushedStatus(commits)
 
-	var commits []CommitInfo
-	scanner := bufio.NewScanner(bytes.NewReader(out))
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		parts := strings.SplitN(line, "|", 5)
-		if len(parts) != 5 {
-			continue
-		}
-
-		hash := parts[0]
-		shortHash := parts[1]
-		author := parts[2]
-		dateUnix, _ := strconv.ParseInt(parts[3], 10, 64)
-		message := parts[4]
-
-		isPushed := c.isCommitOnRemote(hash, remoteBranches)
-
-		commits = append(commits, CommitInfo{
-			Hash:      hash,
-			ShortHash: shortHash,
-			Author:    author,
-			Date:      time.Unix(dateUnix, 0),
-			Message:   message,
-			IsPushed:  isPushed,
-		})
-	}
-
-	return commits, scanner.Err()
+	return commits, nil
 }
 
 // GetCommitsInRange returns commits between two refs (exclusive of 'from', inclusive of 'to').
@@ -547,8 +515,14 @@ func (c *Collector) GetCommitsInRange(from, to string) ([]CommitInfo, error) {
 		return nil, fmt.Errorf("failed to get commits in range: %w", err)
 	}
 
-	remoteBranches, _ := c.getRemoteBranches()
+	commits := c.parseCommitLog(out)
+	c.batchResolvePushedStatus(commits)
 
+	return commits, nil
+}
+
+// parseCommitLog parses git log output into CommitInfo structs (without pushed status).
+func (c *Collector) parseCommitLog(out []byte) []CommitInfo {
 	var commits []CommitInfo
 	scanner := bufio.NewScanner(bytes.NewReader(out))
 
@@ -559,64 +533,56 @@ func (c *Collector) GetCommitsInRange(from, to string) ([]CommitInfo, error) {
 			continue
 		}
 
-		hash := parts[0]
-		shortHash := parts[1]
-		author := parts[2]
 		dateUnix, _ := strconv.ParseInt(parts[3], 10, 64)
-		message := parts[4]
-
-		isPushed := c.isCommitOnRemote(hash, remoteBranches)
 
 		commits = append(commits, CommitInfo{
-			Hash:      hash,
-			ShortHash: shortHash,
-			Author:    author,
+			Hash:      parts[0],
+			ShortHash: parts[1],
+			Author:    parts[2],
 			Date:      time.Unix(dateUnix, 0),
-			Message:   message,
-			IsPushed:  isPushed,
+			Message:   parts[4],
 		})
 	}
 
-	return commits, scanner.Err()
+	return commits
 }
 
-// getRemoteBranches returns a set of commit hashes that exist on remote branches.
-func (c *Collector) getRemoteBranches() (map[string]bool, error) {
-	cmd := exec.Command("git", "branch", "-r", "--format=%(objectname)")
+// batchResolvePushedStatus determines pushed status for all commits using a single
+// git log call to find local-only commits, then marks the rest as pushed.
+func (c *Collector) batchResolvePushedStatus(commits []CommitInfo) {
+	if len(commits) == 0 {
+		return
+	}
+
+	localOnly := c.getLocalOnlyCommits()
+
+	for i := range commits {
+		commits[i].IsPushed = !localOnly[commits[i].Hash]
+	}
+}
+
+// getLocalOnlyCommits returns a set of commit hashes that exist only locally
+// (not reachable from any remote tracking branch).
+func (c *Collector) getLocalOnlyCommits() map[string]bool {
+	localOnly := make(map[string]bool)
+
+	// Get all local-only commits in one call: commits on HEAD not reachable from any remote
+	cmd := exec.Command("git", "log", "--format=%H", "--not", "--remotes")
 	cmd.Dir = c.workDir
 
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, err
+		// If this fails (e.g., no remotes), treat all commits as local
+		return localOnly
 	}
 
-	branches := make(map[string]bool)
 	scanner := bufio.NewScanner(bytes.NewReader(out))
 	for scanner.Scan() {
 		hash := strings.TrimSpace(scanner.Text())
 		if hash != "" {
-			branches[hash] = true
+			localOnly[hash] = true
 		}
 	}
 
-	return branches, nil
-}
-
-// isCommitOnRemote checks if a commit is reachable from any remote branch.
-func (c *Collector) isCommitOnRemote(hash string, remoteBranches map[string]bool) bool {
-	// Quick check: is this commit itself a remote branch tip?
-	if remoteBranches[hash] {
-		return true
-	}
-
-	// Check if any remote branch contains this commit
-	cmd := exec.Command("git", "branch", "-r", "--contains", hash)
-	cmd.Dir = c.workDir
-
-	out, err := cmd.Output()
-	if err != nil {
-		return false
-	}
-
-	return len(strings.TrimSpace(string(out))) > 0
+	return localOnly
 }
