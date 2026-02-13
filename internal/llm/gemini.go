@@ -36,9 +36,7 @@ func NewGeminiProvider(apiKey, model string) (*GeminiProvider, error) {
 		apiKey:  apiKey,
 		model:   model,
 		baseURL: geminiAPIURL,
-		client: &http.Client{
-			Timeout: 60 * time.Second,
-		},
+		client:  newHTTPClient(60 * time.Second),
 	}, nil
 }
 
