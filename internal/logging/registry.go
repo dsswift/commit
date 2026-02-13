@@ -66,7 +66,7 @@ func WriteRegistryEntry(entry RegistryEntry) error {
 	if err != nil {
 		return fmt.Errorf("failed to open registry file: %w", err)
 	}
-	defer file.Close()
+	defer file.Close() //nolint:errcheck // write-only append file
 
 	jsonBytes, err := json.Marshal(entry)
 	if err != nil {
@@ -89,7 +89,7 @@ func shouldRotate(path string) bool {
 // rotateRegistry rotates the registry file.
 func rotateRegistry(path string) {
 	// Remove old backups
-	os.Remove(path + ".2")
+	_ = os.Remove(path + ".2")
 
 	// Rotate existing backups
 	_ = os.Rename(path+".1", path+".2")
@@ -126,7 +126,7 @@ func CleanupOldLogs() error {
 		}
 
 		if info.ModTime().Before(cutoff) {
-			os.Remove(filepath.Join(executionsDir, entry.Name()))
+			_ = os.Remove(filepath.Join(executionsDir, entry.Name()))
 		}
 	}
 

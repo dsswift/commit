@@ -94,7 +94,7 @@ func (r *Rebaser) createTodoScript(todoContent string) (string, func(), error) {
 	}
 
 	cleanup := func() {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 	}
 
 	// Write the todo content to a file
@@ -150,7 +150,7 @@ func (r *Rebaser) createRewordScript(entries []RebaseEntry) (string, func(), err
 	}
 
 	cleanup := func() {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 	}
 
 	// Write message files

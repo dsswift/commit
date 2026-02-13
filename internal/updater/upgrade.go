@@ -83,7 +83,7 @@ func Upgrade(currentVersion string) *UpgradeResult {
 		result.Error = fmt.Errorf("failed to download update: %w", err)
 		return result
 	}
-	defer os.Remove(tempPath)
+	defer os.Remove(tempPath) //nolint:errcheck // best-effort cleanup
 
 	// Verify checksum
 	checksums, checksumErr := downloadChecksums(release.TagName)
@@ -143,7 +143,7 @@ func downloadBinary(url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // HTTP response body
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("download failed with status %d", resp.StatusCode)
@@ -154,18 +154,18 @@ func downloadBinary(url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer tempFile.Close()
+	defer tempFile.Close() //nolint:errcheck // temp file
 
 	// Copy content
 	_, err = io.Copy(tempFile, resp.Body)
 	if err != nil {
-		os.Remove(tempFile.Name())
+		_ = os.Remove(tempFile.Name())
 		return "", err
 	}
 
 	// Make executable
 	if err := os.Chmod(tempFile.Name(), 0755); err != nil {
-		os.Remove(tempFile.Name())
+		_ = os.Remove(tempFile.Name())
 		return "", err
 	}
 
@@ -178,7 +178,7 @@ func replaceBinary(target, source string) error {
 	// So we rename the old one first
 	if runtime.GOOS == "windows" {
 		oldPath := target + ".old"
-		os.Remove(oldPath) // Remove any previous .old file
+		_ = os.Remove(oldPath) // Remove any previous .old file
 		if err := os.Rename(target, oldPath); err != nil {
 			return err
 		}
@@ -189,13 +189,13 @@ func replaceBinary(target, source string) error {
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer sourceFile.Close() //nolint:errcheck // read-only file
 
 	targetFile, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 	if err != nil {
 		return err
 	}
-	defer targetFile.Close()
+	defer targetFile.Close() //nolint:errcheck // closed after copy
 
 	_, err = io.Copy(targetFile, sourceFile)
 	if err != nil {
@@ -228,7 +228,7 @@ func downloadChecksums(version string) (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to download checksums: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // HTTP response body
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("checksums download failed with status %d", resp.StatusCode)
@@ -267,7 +267,7 @@ func verifyChecksum(binaryPath, expectedHash string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open file for checksum: %w", err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // read-only file
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
