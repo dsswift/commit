@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.12.0](https://github.com/dsswift/commit/compare/v1.11.0...v1.12.0) (2026-02-13)
+
+
+### Features
+
+* add self-update command ([6074677](https://github.com/dsswift/commit/commit/60746771e76d061547d3cdfb82d94085a7ff5975))
+* support reversing multiple commits ([de7a17c](https://github.com/dsswift/commit/commit/de7a17cd50f7d23ee4c447256e47da6e8532dc15))
+
 ## [1.11.0](https://github.com/dsswift/commit/compare/v1.10.2...v1.11.0) (2026-02-09)
 
 
