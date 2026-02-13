@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/dsswift/commit/internal/testutil"
 )
 
 func TestIsNewerVersion(t *testing.T) {
@@ -80,15 +82,15 @@ func TestFormatUpdateNotice_UpdateAvailable(t *testing.T) {
 		t.Error("expected non-empty notice")
 	}
 
-	if !containsString(notice, "1.0.0") {
+	if !testutil.ContainsString(notice, "1.0.0") {
 		t.Error("notice should contain current version")
 	}
 
-	if !containsString(notice, "1.1.0") {
+	if !testutil.ContainsString(notice, "1.1.0") {
 		t.Error("notice should contain latest version")
 	}
 
-	if !containsString(notice, "--upgrade") {
+	if !testutil.ContainsString(notice, "--upgrade") {
 		t.Error("notice should mention --upgrade")
 	}
 }
@@ -223,11 +225,3 @@ func TestCheckVersionFresh_BypassesCache(t *testing.T) {
 	}
 }
 
-func containsString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}

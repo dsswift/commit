@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/dsswift/commit/internal/testutil"
 )
 
 // testRepo creates a temporary git repository for testing.
@@ -232,7 +234,7 @@ func TestCollector_Diff(t *testing.T) {
 		t.Error("expected non-empty diff")
 	}
 
-	if !containsString(diff, "+line3") {
+	if !testutil.ContainsString(diff, "+line3") {
 		t.Errorf("expected diff to contain '+line3', got: %s", diff)
 	}
 }
@@ -559,15 +561,15 @@ func TestPushedCommitError(t *testing.T) {
 		err := &PushedCommitError{Count: 1}
 		msg := err.Error()
 
-		if !containsString(msg, "pushed to origin") {
+		if !testutil.ContainsString(msg, "pushed to origin") {
 			t.Errorf("expected error to mention 'pushed to origin', got: %s", msg)
 		}
 
-		if !containsString(msg, "--force") {
+		if !testutil.ContainsString(msg, "--force") {
 			t.Errorf("expected error to mention '--force', got: %s", msg)
 		}
 
-		if containsString(msg, "One or more") {
+		if testutil.ContainsString(msg, "One or more") {
 			t.Errorf("single commit error should not say 'One or more', got: %s", msg)
 		}
 	})
@@ -576,24 +578,16 @@ func TestPushedCommitError(t *testing.T) {
 		err := &PushedCommitError{Count: 3}
 		msg := err.Error()
 
-		if !containsString(msg, "One or more of the last 3 commits") {
+		if !testutil.ContainsString(msg, "One or more of the last 3 commits") {
 			t.Errorf("expected error to mention multi-commit context, got: %s", msg)
 		}
 
-		if !containsString(msg, "--force") {
+		if !testutil.ContainsString(msg, "--force") {
 			t.Errorf("expected error to mention '--force', got: %s", msg)
 		}
 	})
 }
 
-func containsString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
 
 // createGitignore creates a .gitignore file in the test repo
 func createGitignore(t *testing.T, repoDir string, patterns ...string) {
@@ -678,7 +672,7 @@ func TestStager_StageFiles_IgnoredFile(t *testing.T) {
 	if err == nil {
 		t.Error("expected error when staging ignored file")
 	}
-	if err != nil && !containsString(err.Error(), "ignored") {
+	if err != nil && !testutil.ContainsString(err.Error(), "ignored") {
 		t.Errorf("expected error to mention 'ignored', got: %v", err)
 	}
 }
@@ -917,10 +911,10 @@ func TestStager_StageFiles_AutoDetectedRename(t *testing.T) {
 	cmd.Dir = repoDir
 	out, _ := cmd.Output()
 	status := string(out)
-	if !containsString(status, " D old_name.txt") {
+	if !testutil.ContainsString(status, " D old_name.txt") {
 		t.Fatalf("expected ' D old_name.txt' in status, got: %s", status)
 	}
-	if !containsString(status, "?? new_name.txt") {
+	if !testutil.ContainsString(status, "?? new_name.txt") {
 		t.Fatalf("expected '?? new_name.txt' in status, got: %s", status)
 	}
 
@@ -991,7 +985,7 @@ func TestReverser_Reverse_TooMany(t *testing.T) {
 		t.Fatal("expected error when reversing more commits than exist")
 	}
 
-	if !containsString(err.Error(), "only 2 commits exist") {
+	if !testutil.ContainsString(err.Error(), "only 2 commits exist") {
 		t.Errorf("expected error to mention commit count, got: %s", err.Error())
 	}
 }

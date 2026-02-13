@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dsswift/commit/internal/testutil"
 	"github.com/dsswift/commit/pkg/types"
 )
 
@@ -110,7 +111,7 @@ func TestValidator_Validate_InvalidCommitType(t *testing.T) {
 
 	hasTypeError := false
 	for _, err := range result.Errors {
-		if containsString(err.Message, "not allowed") {
+		if testutil.ContainsString(err.Message, "not allowed") {
 			hasTypeError = true
 			break
 		}
@@ -434,15 +435,15 @@ func TestPreviewPlan(t *testing.T) {
 		t.Error("expected non-empty preview")
 	}
 
-	if !containsString(preview, "2 commits planned") {
+	if !testutil.ContainsString(preview, "2 commits planned") {
 		t.Errorf("expected '2 commits planned', got: %s", preview)
 	}
 
-	if !containsString(preview, "feat(api): add endpoint") {
+	if !testutil.ContainsString(preview, "feat(api): add endpoint") {
 		t.Errorf("expected scoped commit message, got: %s", preview)
 	}
 
-	if !containsString(preview, "docs: update readme") {
+	if !testutil.ContainsString(preview, "docs: update readme") {
 		t.Errorf("expected unscoped commit message, got: %s", preview)
 	}
 }
@@ -473,15 +474,15 @@ func TestExecutionError(t *testing.T) {
 
 	msg := err.Error()
 
-	if !containsString(msg, "commit 2") {
+	if !testutil.ContainsString(msg, "commit 2") {
 		t.Errorf("expected 'commit 2' (1-indexed), got: %s", msg)
 	}
 
-	if !containsString(msg, "feat(api): add feature") {
+	if !testutil.ContainsString(msg, "feat(api): add feature") {
 		t.Errorf("expected commit message in error, got: %s", msg)
 	}
 
-	if !containsString(msg, "git error") {
+	if !testutil.ContainsString(msg, "git error") {
 		t.Errorf("expected wrapped error message, got: %s", msg)
 	}
 
@@ -500,11 +501,3 @@ func (e *testError) Error() string {
 	return e.msg
 }
 
-func containsString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}

@@ -52,12 +52,12 @@ func anthropicEmptyBody() string {
 	return string(b)
 }
 
-// --- OpenAI response helpers ---
+// --- OpenAI/Grok response helpers (shared chat types) ---
 
 func openaiSuccessBody(content string) string {
-	resp := openaiResponse{
-		Choices: []openaiChoice{{
-			Message:      openaiMessage{Role: "assistant", Content: content},
+	resp := chatResponse{
+		Choices: []chatChoice{{
+			Message:      chatMessage{Role: "assistant", Content: content},
 			FinishReason: "stop",
 		}},
 	}
@@ -66,9 +66,9 @@ func openaiSuccessBody(content string) string {
 }
 
 func openaiTruncatedBody() string {
-	resp := openaiResponse{
-		Choices: []openaiChoice{{
-			Message:      openaiMessage{Role: "assistant", Content: `{"commits":[]`},
+	resp := chatResponse{
+		Choices: []chatChoice{{
+			Message:      chatMessage{Role: "assistant", Content: `{"commits":[]`},
 			FinishReason: "length",
 		}},
 	}
@@ -77,39 +77,21 @@ func openaiTruncatedBody() string {
 }
 
 func openaiEmptyBody() string {
-	resp := openaiResponse{Choices: []openaiChoice{}}
+	resp := chatResponse{Choices: []chatChoice{}}
 	b, _ := json.Marshal(resp)
 	return string(b)
 }
 
-// --- Grok response helpers ---
-
 func grokSuccessBody(content string) string {
-	resp := grokResponse{
-		Choices: []grokChoice{{
-			Message:      grokMessage{Role: "assistant", Content: content},
-			FinishReason: "stop",
-		}},
-	}
-	b, _ := json.Marshal(resp)
-	return string(b)
+	return openaiSuccessBody(content)
 }
 
 func grokTruncatedBody() string {
-	resp := grokResponse{
-		Choices: []grokChoice{{
-			Message:      grokMessage{Role: "assistant", Content: `{"commits":[]`},
-			FinishReason: "length",
-		}},
-	}
-	b, _ := json.Marshal(resp)
-	return string(b)
+	return openaiTruncatedBody()
 }
 
 func grokEmptyBody() string {
-	resp := grokResponse{Choices: []grokChoice{}}
-	b, _ := json.Marshal(resp)
-	return string(b)
+	return openaiEmptyBody()
 }
 
 // --- Gemini response helpers ---
@@ -949,7 +931,7 @@ func TestAnthropicProvider_SendsCorrectRequestBody(t *testing.T) {
 }
 
 func TestOpenAIProvider_SendsCorrectRequestBody(t *testing.T) {
-	var capturedBody openaiRequest
+	var capturedBody chatRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&capturedBody)
 		w.WriteHeader(http.StatusOK)

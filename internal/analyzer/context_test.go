@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dsswift/commit/internal/testutil"
 	"github.com/dsswift/commit/pkg/types"
 )
 
@@ -312,21 +313,13 @@ func TestSummary(t *testing.T) {
 	}
 
 	// Should mention file count
-	if !containsString(summary, "3 files") {
+	if !testutil.ContainsString(summary, "3 files") {
 		t.Errorf("expected summary to mention '3 files', got: %s", summary)
 	}
 
 	// Should mention scope count
-	if !containsString(summary, "2 scopes") {
+	if !testutil.ContainsString(summary, "2 scopes") {
 		t.Errorf("expected summary to mention '2 scopes', got: %s", summary)
 	}
 }
 
-func containsString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
