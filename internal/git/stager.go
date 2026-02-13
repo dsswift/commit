@@ -90,7 +90,7 @@ func (s *Stager) StageFiles(files []string) error {
 	}
 
 	// EXECUTION
-	args := append([]string{"add"}, filesToStage...)
+	args := append([]string{"add", "--"}, filesToStage...)
 	cmd := exec.Command("git", args...)
 	cmd.Dir = s.workDir
 
