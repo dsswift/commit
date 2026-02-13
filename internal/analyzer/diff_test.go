@@ -112,7 +112,7 @@ func TestGetDiff_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	// Initialize git repo
 	runGit(t, tmpDir, "init")
@@ -150,7 +150,7 @@ func TestGetDiff_NoDifference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	// Initialize git repo
 	runGit(t, tmpDir, "init")

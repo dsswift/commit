@@ -12,7 +12,7 @@ func TestParseEnvFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	envContent := `# Comment line
 COMMIT_PROVIDER=anthropic
@@ -57,12 +57,9 @@ SINGLE_QUOTED='single quoted'
 }
 
 func TestLoadUserConfig_MissingFile(t *testing.T) {
-	// Save original home and restore after test
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "config-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	_, err := LoadUserConfig()
 	if err == nil {
@@ -75,11 +72,9 @@ func TestLoadUserConfig_MissingFile(t *testing.T) {
 }
 
 func TestLoadUserConfig_MissingProvider(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "config-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	// Create config dir and file without provider
 	configDir := filepath.Join(tmpDir, ConfigDir)
@@ -97,11 +92,9 @@ func TestLoadUserConfig_MissingProvider(t *testing.T) {
 }
 
 func TestLoadUserConfig_InvalidProvider(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "config-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	configDir := filepath.Join(tmpDir, ConfigDir)
 	_ = os.MkdirAll(configDir, 0700)
@@ -120,11 +113,9 @@ func TestLoadUserConfig_InvalidProvider(t *testing.T) {
 }
 
 func TestLoadUserConfig_MissingAPIKey(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "config-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	configDir := filepath.Join(tmpDir, ConfigDir)
 	_ = os.MkdirAll(configDir, 0700)
@@ -148,11 +139,9 @@ func TestLoadUserConfig_MissingAPIKey(t *testing.T) {
 }
 
 func TestLoadUserConfig_ValidAnthropicConfig(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "config-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	configDir := filepath.Join(tmpDir, ConfigDir)
 	_ = os.MkdirAll(configDir, 0700)
@@ -182,11 +171,9 @@ COMMIT_DRY_RUN=true`
 }
 
 func TestLoadUserConfig_ValidAzureFoundryConfig(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "config-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	configDir := filepath.Join(tmpDir, ConfigDir)
 	_ = os.MkdirAll(configDir, 0700)
@@ -216,11 +203,9 @@ AZURE_FOUNDRY_DEPLOYMENT=gpt-4`
 }
 
 func TestEnsureConfigDir(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "config-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	err := EnsureConfigDir()
 	if err != nil {
@@ -240,11 +225,9 @@ func TestEnsureConfigDir(t *testing.T) {
 }
 
 func TestCreateDefaultConfig(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "config-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	err := CreateDefaultConfig()
 	if err != nil {
@@ -273,11 +256,9 @@ func TestCreateDefaultConfig(t *testing.T) {
 }
 
 func TestCreateDefaultConfig_DoesNotOverwrite(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "config-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	// Create existing config
 	configDir := filepath.Join(tmpDir, ConfigDir)
@@ -300,11 +281,9 @@ func TestCreateDefaultConfig_DoesNotOverwrite(t *testing.T) {
 }
 
 func TestLoadUserConfig_DefaultMode(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "config-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	tests := []struct {
 		name         string
@@ -373,11 +352,9 @@ COMMIT_DEFAULT_MODE=invalid`,
 }
 
 func TestSetConfigValue(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "config-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	configDir := filepath.Join(tmpDir, ConfigDir)
 	_ = os.MkdirAll(configDir, 0700)

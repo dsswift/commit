@@ -157,7 +157,7 @@ func parseEnvFile(path string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer file.Close() //nolint:errcheck // read-only file
 
 	env := make(map[string]string)
 	scanner := bufio.NewScanner(file)

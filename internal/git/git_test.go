@@ -889,7 +889,7 @@ func TestStager_StageFiles_AutoDetectedRename(t *testing.T) {
 
 	// Manually delete the old file and create a new file with same content
 	// (simulating what happens in a Unity refactor where the file is renamed outside git)
-	os.Remove(filepath.Join(repoDir, "old_name.txt"))
+	_ = os.Remove(filepath.Join(repoDir, "old_name.txt"))
 	createFile(t, repoDir, "new_name.txt", "some content that git can match")
 
 	// Verify the current state: deleted file + untracked new file

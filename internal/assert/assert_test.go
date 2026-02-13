@@ -94,8 +94,8 @@ func TestFileExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	tmpFile.Close()
-	defer os.Remove(tmpFile.Name())
+	_ = tmpFile.Close()
+	defer os.Remove(tmpFile.Name()) //nolint:errcheck // test cleanup
 
 	assertNoPanic(t, "FileExists(existing)", func() {
 		FileExists(tmpFile.Name(), "should not panic")
@@ -112,7 +112,7 @@ func TestDirExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	assertNoPanic(t, "DirExists(existing)", func() {
 		DirExists(tmpDir, "should not panic")
