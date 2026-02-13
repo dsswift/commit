@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/dsswift/commit/internal/assert"
 	"github.com/dsswift/commit/pkg/types"
@@ -112,6 +113,16 @@ func (v *Validator) Validate(plan *types.CommitPlan) *ValidationResult {
 		}
 
 		for j, file := range commit.Files {
+			// Reject path traversal attempts
+			if !isPathSafe(file) {
+				result.Valid = false
+				result.Errors = append(result.Errors, ValidationError{
+					Field:   fmt.Sprintf("commits[%d].files[%d]", i, j),
+					Message: fmt.Sprintf("unsafe file path: %s", file),
+				})
+				continue
+			}
+
 			// Check if file is in known files list
 			if !v.knownFiles[file] {
 				// Also check if file exists on disk (might be untracked)
@@ -262,6 +273,25 @@ func (v *Validator) mergeOverlappingCommits(commits []types.PlannedCommit) []typ
 	}
 
 	return result
+}
+
+// isPathSafe rejects absolute paths and paths containing ".." after cleaning.
+func isPathSafe(file string) bool {
+	if filepath.IsAbs(file) {
+		return false
+	}
+	cleaned := filepath.Clean(file)
+	// Check for directory traversal
+	if cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
+		return false
+	}
+	// Also check for embedded traversal (e.g., "foo/../../etc/passwd")
+	for _, part := range strings.Split(cleaned, string(filepath.Separator)) {
+		if part == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 // SensitiveFiles is a list of file patterns that should never be committed.
