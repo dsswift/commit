@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dsswift/commit/internal/analyzer"
+	"github.com/dsswift/commit/internal/assert"
 	"github.com/dsswift/commit/internal/config"
 	"github.com/dsswift/commit/internal/git"
 	"github.com/dsswift/commit/internal/interactive"
@@ -27,11 +28,30 @@ var Version = "dev"
 // BuildTime is set at build time via ldflags (format: YYYYMMDD-HHMM).
 var BuildTime = ""
 
+// newProviderFunc creates an LLM provider. Overridable for testing.
+var newProviderFunc = llm.NewProvider
+
 func main() {
 	os.Exit(run())
 }
 
-func run() int {
+func run() (exitCode int) {
+	// Recover from assertion panics with a user-friendly message
+	defer func() {
+		if r := recover(); r != nil {
+			if ae, ok := r.(*assert.AssertionError); ok {
+				fmt.Fprintf(os.Stderr, "\nInternal error: %s\n", ae.Message)
+				fmt.Fprintf(os.Stderr, "Location: %s:%d\n", ae.File, ae.Line)
+				fmt.Fprintf(os.Stderr, "\nThis is a bug. Please report it at:\n")
+				fmt.Fprintf(os.Stderr, "  https://github.com/dsswift/commit/issues\n")
+				exitCode = 2
+				return
+			}
+			// Re-panic for non-assertion panics to preserve stack traces
+			panic(r)
+		}
+	}()
+
 	// Parse flags
 	flags := parseFlags()
 
@@ -392,7 +412,7 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 	// Create LLM provider
 	printStep("🤖", "Analyzing changes...")
 
-	provider, err := llm.NewProvider(userConfig)
+	provider, err := newProviderFunc(userConfig)
 	if err != nil {
 		printError("Failed to create LLM provider", err)
 		result.ExitCode = 1
