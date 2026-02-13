@@ -85,22 +85,23 @@ func Upgrade(currentVersion string) *UpgradeResult {
 	}
 	defer os.Remove(tempPath) //nolint:errcheck // best-effort cleanup
 
-	// Verify checksum
+	// Verify checksum (fail closed for tagged releases)
 	checksums, checksumErr := downloadChecksums(release.TagName)
 	if checksumErr != nil {
-		// Older releases may not have checksums.txt -- warn but continue
-		fmt.Fprintf(os.Stderr, "warning: checksum file not available for %s, skipping verification\n", release.TagName)
-	} else {
-		binaryName := buildBinaryName()
-		expectedHash, found := checksums[binaryName]
-		if !found {
-			fmt.Fprintf(os.Stderr, "warning: no checksum entry for %s, skipping verification\n", binaryName)
-		} else {
-			if err := verifyChecksum(tempPath, expectedHash); err != nil {
-				result.Error = fmt.Errorf("checksum verification failed: %w", err)
-				return result
-			}
-		}
+		result.Error = fmt.Errorf("checksum file not available for %s: %w (refusing to install unverified binary)", release.TagName, checksumErr)
+		return result
+	}
+
+	binaryName := buildBinaryName()
+	expectedHash, found := checksums[binaryName]
+	if !found {
+		result.Error = fmt.Errorf("no checksum entry for %s in release %s (refusing to install unverified binary)", binaryName, release.TagName)
+		return result
+	}
+
+	if err := verifyChecksum(tempPath, expectedHash); err != nil {
+		result.Error = fmt.Errorf("checksum verification failed: %w", err)
+		return result
 	}
 
 	// Replace current binary
