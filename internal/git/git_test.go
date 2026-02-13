@@ -18,7 +18,7 @@ func testRepo(t *testing.T) (string, func()) {
 	}
 
 	cleanup := func() {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 	}
 
 	// Initialize git repo
@@ -103,7 +103,7 @@ func TestFindGitRoot_NotARepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	_, err = FindGitRoot(tmpDir)
 	if err == nil {
@@ -120,7 +120,7 @@ func TestIsGitRepo(t *testing.T) {
 	}
 
 	tmpDir, _ := os.MkdirTemp("", "not-git-*")
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	if IsGitRepo(tmpDir) {
 		t.Error("expected IsGitRepo to return false for non-git directory")

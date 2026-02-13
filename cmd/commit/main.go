@@ -83,7 +83,7 @@ func run() int {
 	}
 	defer func() {
 		if logger != nil {
-			logger.Close()
+			_ = logger.Close()
 		}
 	}()
 
@@ -476,11 +476,12 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 			msg = fmt.Sprintf("%s: %s", commit.Type, commit.Message)
 		}
 
-		if current == 1 {
+		switch current {
+		case 1:
 			fmt.Printf("   ┌─ [%d/%d] %s\n", current, total, msg)
-		} else if current == total {
+		case total:
 			fmt.Printf("   └─ [%d/%d] %s\n", current, total, msg)
-		} else {
+		default:
 			fmt.Printf("   ├─ [%d/%d] %s\n", current, total, msg)
 		}
 
