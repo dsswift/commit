@@ -18,7 +18,7 @@ func testRepo(t *testing.T) (string, func()) {
 	}
 
 	cleanup := func() {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 	}
 
 	// Initialize git repo
@@ -103,7 +103,7 @@ func TestFindGitRoot_NotARepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	_, err = FindGitRoot(tmpDir)
 	if err == nil {
@@ -120,7 +120,7 @@ func TestIsGitRepo(t *testing.T) {
 	}
 
 	tmpDir, _ := os.MkdirTemp("", "not-git-*")
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	if IsGitRepo(tmpDir) {
 		t.Error("expected IsGitRepo to return false for non-git directory")
@@ -889,7 +889,7 @@ func TestStager_StageFiles_AutoDetectedRename(t *testing.T) {
 
 	// Manually delete the old file and create a new file with same content
 	// (simulating what happens in a Unity refactor where the file is renamed outside git)
-	os.Remove(filepath.Join(repoDir, "old_name.txt"))
+	_ = os.Remove(filepath.Join(repoDir, "old_name.txt"))
 	createFile(t, repoDir, "new_name.txt", "some content that git can match")
 
 	// Verify the current state: deleted file + untracked new file

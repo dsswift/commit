@@ -157,12 +157,12 @@ func TestVerifyChecksum(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer os.Remove(tmpFile.Name()) //nolint:errcheck // test cleanup
 
 	if _, err := tmpFile.Write(content); err != nil {
 		t.Fatalf("failed to write temp file: %v", err)
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	// Compute expected hash
 	h := sha256.Sum256(content)
@@ -209,7 +209,7 @@ func TestDownloadChecksums_Parse(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		fmt.Fprint(w, checksumContent)
+		_, _ = fmt.Fprint(w, checksumContent)
 	}))
 	defer server.Close()
 
@@ -221,7 +221,7 @@ func TestDownloadChecksums_Parse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to fetch from test server: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test HTTP response
 
 	// Parse in the same way downloadChecksums does
 	checksums := make(map[string]string)
@@ -278,7 +278,7 @@ func TestDownloadChecksums_NotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected network error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // test HTTP response
 
 	if resp.StatusCode == http.StatusOK {
 		t.Error("expected non-200 status for missing checksums")

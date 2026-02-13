@@ -47,7 +47,7 @@ func doRequest(req *llmRequest) (*llmResponse, error) {
 	if err != nil {
 		return nil, &ProviderError{Provider: req.provider, Message: "request failed", Err: err}
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // HTTP response body
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {

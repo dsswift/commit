@@ -34,12 +34,9 @@ func TestGenerateExecutionID(t *testing.T) {
 }
 
 func TestExecutionLogger_Log(t *testing.T) {
-	// Use temp directory for testing
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "logging-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	// Create logger
 	execID := "exec_test_123"
@@ -47,7 +44,7 @@ func TestExecutionLogger_Log(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewExecutionLogger failed: %v", err)
 	}
-	defer logger.Close()
+	defer logger.Close() //nolint:errcheck // test cleanup
 
 	// Log some events
 	logger.Log("test_event", map[string]string{"key": "value"})
@@ -55,7 +52,7 @@ func TestExecutionLogger_Log(t *testing.T) {
 	logger.LogConfigLoaded("anthropic", true, []string{"api", "core"})
 
 	// Close to flush
-	logger.Close()
+	_ = logger.Close()
 
 	// Read and verify log file
 	logPath := logger.Path()
@@ -81,18 +78,16 @@ func TestExecutionLogger_Log(t *testing.T) {
 }
 
 func TestExecutionLogger_Path(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "logging-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	execID := "exec_test_456"
 	logger, err := NewExecutionLogger(execID)
 	if err != nil {
 		t.Fatalf("NewExecutionLogger failed: %v", err)
 	}
-	defer logger.Close()
+	defer logger.Close() //nolint:errcheck // test cleanup
 
 	path := logger.Path()
 
@@ -106,11 +101,9 @@ func TestExecutionLogger_Path(t *testing.T) {
 }
 
 func TestWriteRegistryEntry(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "logging-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	entry := RegistryEntry{
 		ExecutionID:    "exec_test_789",
@@ -151,11 +144,9 @@ func TestWriteRegistryEntry(t *testing.T) {
 }
 
 func TestGetRecentExecutions(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "logging-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	// Write multiple entries
 	for i := 1; i <= 5; i++ {
@@ -185,11 +176,9 @@ func TestGetRecentExecutions(t *testing.T) {
 }
 
 func TestGetRecentExecutions_NoFile(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "logging-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	// Should not error for missing file
 	recent, err := GetRecentExecutions(5)
@@ -203,11 +192,9 @@ func TestGetRecentExecutions_NoFile(t *testing.T) {
 }
 
 func TestCleanupOldLogs(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "logging-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	// Create executions directory
 	execDir := filepath.Join(tmpDir, ".commit-tool", "logs", "executions")
@@ -267,7 +254,7 @@ func TestSplitLines(t *testing.T) {
 func TestRegistryRotation(t *testing.T) {
 	// Test that shouldRotate returns correct values
 	tmpDir, _ := os.MkdirTemp("", "logging-test-*")
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	// Create small file (under threshold)
 	smallFile := filepath.Join(tmpDir, "small.jsonl")
@@ -284,14 +271,12 @@ func TestRegistryRotation(t *testing.T) {
 }
 
 func TestExecutionLogger_AllLogMethods(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "logging-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	logger, _ := NewExecutionLogger("exec_all_methods")
-	defer logger.Close()
+	defer logger.Close() //nolint:errcheck // test cleanup
 
 	// Call all log methods to ensure they don't panic
 	logger.LogStart("1.0.0", []string{})
@@ -308,7 +293,7 @@ func TestExecutionLogger_AllLogMethods(t *testing.T) {
 	logger.LogError(&testError{"test error"})
 	logger.LogComplete(0, 3)
 
-	logger.Close()
+	_ = logger.Close()
 
 	// Verify file was created with content
 	content, _ := os.ReadFile(logger.Path())

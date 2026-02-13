@@ -19,7 +19,7 @@ func testRepo(t *testing.T) (string, func()) {
 	}
 
 	cleanup := func() {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 	}
 
 	cmd := exec.Command("git", "init")

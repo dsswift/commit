@@ -94,12 +94,9 @@ func TestFormatUpdateNotice_UpdateAvailable(t *testing.T) {
 }
 
 func TestCacheSaveAndLoad(t *testing.T) {
-	// Use temp directory for testing
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "updater-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	// Create config directory
 	configDir := filepath.Join(tmpDir, ".commit-tool")
@@ -131,11 +128,9 @@ func TestCacheSaveAndLoad(t *testing.T) {
 }
 
 func TestLoadCache_NoFile(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "updater-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	_, err := loadCache()
 	if err == nil {
@@ -144,11 +139,9 @@ func TestLoadCache_NoFile(t *testing.T) {
 }
 
 func TestCheckVersion_UsesCache(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "updater-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	// Create config directory and cache
 	configDir := filepath.Join(tmpDir, ".commit-tool")
@@ -174,11 +167,9 @@ func TestCheckVersion_UsesCache(t *testing.T) {
 }
 
 func TestCheckVersion_ExpiredCache(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "updater-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	// Create config directory and expired cache
 	configDir := filepath.Join(tmpDir, ".commit-tool")
@@ -202,11 +193,9 @@ func TestCheckVersion_ExpiredCache(t *testing.T) {
 }
 
 func TestCheckVersionFresh_BypassesCache(t *testing.T) {
-	origHome := os.Getenv("HOME")
 	tmpDir, _ := os.MkdirTemp("", "updater-test-*")
-	defer os.RemoveAll(tmpDir)
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	// Create config directory and fresh cache
 	configDir := filepath.Join(tmpDir, ".commit-tool")

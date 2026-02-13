@@ -13,7 +13,7 @@ func TestLoadRepoConfig_NoFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	config, err := LoadRepoConfig(tmpDir)
 	if err != nil {
@@ -39,7 +39,7 @@ func TestLoadRepoConfig_ValidConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	configContent := `{
   "scopes": [
@@ -88,7 +88,7 @@ func TestLoadRepoConfig_SortsBySpecificity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	// Define scopes in non-sorted order
 	configContent := `{
@@ -124,7 +124,7 @@ func TestLoadRepoConfig_NormalizesTrailingSlash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	configContent := `{
   "scopes": [
@@ -151,7 +151,7 @@ func TestLoadRepoConfig_InvalidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	configPath := filepath.Join(tmpDir, RepoConfigFile)
 	_ = os.WriteFile(configPath, []byte("not valid json"), 0644)
@@ -167,7 +167,7 @@ func TestLoadRepoConfig_DuplicatePaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	configContent := `{
   "scopes": [
@@ -190,7 +190,7 @@ func TestLoadRepoConfig_EmptyScopeName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	configContent := `{
   "scopes": [
@@ -318,7 +318,7 @@ func TestCreateDefaultRepoConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	err = CreateDefaultRepoConfig(tmpDir)
 	if err != nil {
@@ -347,7 +347,7 @@ func TestCreateDefaultRepoConfig_DoesNotOverwrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
 
 	// Create existing config
 	existingContent := `{"scopes": [{"path": "existing/", "scope": "existing"}]}`
