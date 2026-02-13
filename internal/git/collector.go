@@ -328,7 +328,12 @@ func (c *Collector) IsInitialCommit() bool {
 
 // IsCommitPushed checks if the HEAD commit exists on any remote branch.
 func (c *Collector) IsCommitPushed() (bool, error) {
-	cmd := exec.Command("git", "branch", "-r", "--contains", "HEAD")
+	return c.IsRefPushed("HEAD")
+}
+
+// IsRefPushed checks if the given ref exists on any remote branch.
+func (c *Collector) IsRefPushed(ref string) (bool, error) {
+	cmd := exec.Command("git", "branch", "-r", "--contains", ref)
 	cmd.Dir = c.workDir
 
 	out, err := cmd.Output()
@@ -339,6 +344,40 @@ func (c *Collector) IsCommitPushed() (bool, error) {
 
 	// If output is non-empty, commit has been pushed
 	return len(strings.TrimSpace(string(out))) > 0, nil
+}
+
+// HasCommitDepth verifies that at least count commits exist (i.e. HEAD~count resolves).
+func (c *Collector) HasCommitDepth(count int) error {
+	assert.Positive(count, "commit depth must be positive")
+
+	ref := fmt.Sprintf("HEAD~%d", count)
+	cmd := exec.Command("git", "rev-parse", "--verify", ref)
+	cmd.Dir = c.workDir
+
+	if err := cmd.Run(); err != nil {
+		actual := c.countCommits()
+		return fmt.Errorf("cannot reverse %d commits: only %d commits exist", count, actual)
+	}
+
+	return nil
+}
+
+// countCommits returns the number of commits reachable from HEAD.
+func (c *Collector) countCommits() int {
+	cmd := exec.Command("git", "rev-list", "--count", "HEAD")
+	cmd.Dir = c.workDir
+
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+
+	n, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil {
+		return 0
+	}
+
+	return n
 }
 
 // AbsolutePath converts a relative path to absolute within the repo.

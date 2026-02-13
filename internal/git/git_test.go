@@ -1,6 +1,7 @@
 package git
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -518,7 +519,7 @@ func TestReverser_Reverse(t *testing.T) {
 	gitCommit(t, repoDir, "second commit")
 
 	reverser := NewReverser(repoDir)
-	err := reverser.Reverse(false)
+	err := reverser.Reverse(1, false)
 	if err != nil {
 		t.Fatalf("Reverse failed: %v", err)
 	}
@@ -547,23 +548,42 @@ func TestReverser_Reverse_InitialCommit(t *testing.T) {
 	gitCommit(t, repoDir, "initial commit")
 
 	reverser := NewReverser(repoDir)
-	err := reverser.Reverse(false)
+	err := reverser.Reverse(1, false)
 	if err == nil {
 		t.Error("expected error when reversing initial commit")
 	}
 }
 
 func TestPushedCommitError(t *testing.T) {
-	err := &PushedCommitError{}
-	msg := err.Error()
+	t.Run("single commit", func(t *testing.T) {
+		err := &PushedCommitError{Count: 1}
+		msg := err.Error()
 
-	if !containsString(msg, "pushed to origin") {
-		t.Errorf("expected error to mention 'pushed to origin', got: %s", msg)
-	}
+		if !containsString(msg, "pushed to origin") {
+			t.Errorf("expected error to mention 'pushed to origin', got: %s", msg)
+		}
 
-	if !containsString(msg, "--force") {
-		t.Errorf("expected error to mention '--force', got: %s", msg)
-	}
+		if !containsString(msg, "--force") {
+			t.Errorf("expected error to mention '--force', got: %s", msg)
+		}
+
+		if containsString(msg, "One or more") {
+			t.Errorf("single commit error should not say 'One or more', got: %s", msg)
+		}
+	})
+
+	t.Run("multiple commits", func(t *testing.T) {
+		err := &PushedCommitError{Count: 3}
+		msg := err.Error()
+
+		if !containsString(msg, "One or more of the last 3 commits") {
+			t.Errorf("expected error to mention multi-commit context, got: %s", msg)
+		}
+
+		if !containsString(msg, "--force") {
+			t.Errorf("expected error to mention '--force', got: %s", msg)
+		}
+	})
 }
 
 func containsString(s, substr string) bool {
@@ -918,5 +938,92 @@ func TestStager_StageFiles_AutoDetectedRename(t *testing.T) {
 		t.Logf("Expected git to auto-detect rename, got renames: %v", renames)
 		// Note: git may not always detect as rename depending on content similarity
 		// So we just verify that staging succeeded
+	}
+}
+
+func TestReverser_Reverse_Multiple(t *testing.T) {
+	repoDir, cleanup := testRepo(t)
+	defer cleanup()
+
+	// Create 4 commits
+	for i := 1; i <= 4; i++ {
+		createFile(t, repoDir, "file.txt", fmt.Sprintf("version %d", i))
+		gitAdd(t, repoDir, "file.txt")
+		gitCommit(t, repoDir, fmt.Sprintf("commit %d", i))
+	}
+
+	reverser := NewReverser(repoDir)
+	err := reverser.Reverse(2, false)
+	if err != nil {
+		t.Fatalf("Reverse(2) failed: %v", err)
+	}
+
+	// Verify HEAD is now at commit 2
+	collector := NewCollector(repoDir)
+	commits, _ := collector.RecentCommits(1)
+	if len(commits) == 0 || commits[0] != "commit 2" {
+		t.Errorf("expected HEAD to be 'commit 2', got %v", commits)
+	}
+
+	// Verify changes are in working directory
+	status, _ := collector.Status()
+	if len(status.Modified) != 1 {
+		t.Errorf("expected 1 modified file, got %d", len(status.Modified))
+	}
+}
+
+func TestReverser_Reverse_TooMany(t *testing.T) {
+	repoDir, cleanup := testRepo(t)
+	defer cleanup()
+
+	// Create 2 commits
+	createFile(t, repoDir, "file.txt", "version 1")
+	gitAdd(t, repoDir, "file.txt")
+	gitCommit(t, repoDir, "commit 1")
+
+	createFile(t, repoDir, "file.txt", "version 2")
+	gitAdd(t, repoDir, "file.txt")
+	gitCommit(t, repoDir, "commit 2")
+
+	reverser := NewReverser(repoDir)
+	err := reverser.Reverse(3, false)
+	if err == nil {
+		t.Fatal("expected error when reversing more commits than exist")
+	}
+
+	if !containsString(err.Error(), "only 2 commits exist") {
+		t.Errorf("expected error to mention commit count, got: %s", err.Error())
+	}
+}
+
+func TestCollector_HasCommitDepth(t *testing.T) {
+	repoDir, cleanup := testRepo(t)
+	defer cleanup()
+
+	// Create 3 commits
+	for i := 1; i <= 3; i++ {
+		createFile(t, repoDir, "file.txt", fmt.Sprintf("version %d", i))
+		gitAdd(t, repoDir, "file.txt")
+		gitCommit(t, repoDir, fmt.Sprintf("commit %d", i))
+	}
+
+	collector := NewCollector(repoDir)
+
+	// Depths 1 and 2 should succeed (HEAD~1 and HEAD~2 exist)
+	if err := collector.HasCommitDepth(1); err != nil {
+		t.Errorf("HasCommitDepth(1) should succeed with 3 commits: %v", err)
+	}
+	if err := collector.HasCommitDepth(2); err != nil {
+		t.Errorf("HasCommitDepth(2) should succeed with 3 commits: %v", err)
+	}
+
+	// Depth 3 should fail (HEAD~3 doesn't exist with 3 commits)
+	if err := collector.HasCommitDepth(3); err == nil {
+		t.Error("HasCommitDepth(3) should fail with only 3 commits")
+	}
+
+	// Depth 4 should also fail
+	if err := collector.HasCommitDepth(4); err == nil {
+		t.Error("HasCommitDepth(4) should fail with only 3 commits")
 	}
 }
