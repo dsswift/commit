@@ -82,6 +82,47 @@ download_binary() {
     DOWNLOADED_FILE="$TEMP_FILE"
 }
 
+# Verify checksum of downloaded binary
+verify_checksum() {
+    CHECKSUM_URL="https://github.com/${REPO}/releases/download/${VERSION}/checksums.txt"
+    CHECKSUM_FILE=$(mktemp)
+
+    if ! curl -fsSL "$CHECKSUM_URL" -o "$CHECKSUM_FILE" 2>/dev/null; then
+        echo "${YELLOW}Warning: checksums.txt not available for ${VERSION}, skipping verification${NC}"
+        rm -f "$CHECKSUM_FILE"
+        return 0
+    fi
+
+    # Determine hash command
+    if command -v sha256sum >/dev/null 2>&1; then
+        ACTUAL_HASH=$(sha256sum "$DOWNLOADED_FILE" | awk '{print $1}')
+    elif command -v shasum >/dev/null 2>&1; then
+        ACTUAL_HASH=$(shasum -a 256 "$DOWNLOADED_FILE" | awk '{print $1}')
+    else
+        echo "${YELLOW}Warning: no SHA256 tool available, skipping verification${NC}"
+        rm -f "$CHECKSUM_FILE"
+        return 0
+    fi
+
+    EXPECTED_HASH=$(grep "$FILENAME" "$CHECKSUM_FILE" | awk '{print $1}')
+    rm -f "$CHECKSUM_FILE"
+
+    if [ -z "$EXPECTED_HASH" ]; then
+        echo "${YELLOW}Warning: no checksum entry for ${FILENAME}, skipping verification${NC}"
+        return 0
+    fi
+
+    if [ "$ACTUAL_HASH" != "$EXPECTED_HASH" ]; then
+        echo "${RED}Checksum verification FAILED${NC}"
+        echo "  Expected: ${EXPECTED_HASH}"
+        echo "  Actual:   ${ACTUAL_HASH}"
+        rm -f "$DOWNLOADED_FILE"
+        exit 1
+    fi
+
+    echo "Checksum verified: ${ACTUAL_HASH}"
+}
+
 # Install binary
 install_binary() {
     mkdir -p "$INSTALL_DIR"
@@ -171,6 +212,7 @@ main() {
     detect_platform
     get_latest_version
     download_binary
+    verify_checksum
     install_binary
     create_config
     echo ""
