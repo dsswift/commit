@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -139,11 +140,37 @@ func run() int {
 	return result.ExitCode
 }
 
+// reverseFlag is a custom flag type that accepts bare --reverse (=1) or --reverse=N.
+type reverseFlag int
+
+func (r *reverseFlag) Set(s string) error {
+	if s == "true" {
+		*r = 1
+		return nil
+	}
+	if s == "false" {
+		*r = 0
+		return nil
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return fmt.Errorf("invalid reverse count %q: must be a positive integer", s)
+	}
+	if n < 1 {
+		return fmt.Errorf("invalid reverse count %d: must be a positive integer", n)
+	}
+	*r = reverseFlag(n)
+	return nil
+}
+
+func (r *reverseFlag) String() string { return strconv.Itoa(int(*r)) }
+func (r *reverseFlag) IsBoolFlag() bool { return true }
+
 type flags struct {
 	staged      bool
 	dryRun      bool
 	verbose     bool
-	reverse     bool
+	reverse     int
 	force       bool
 	interactive bool
 	version     bool
@@ -164,7 +191,7 @@ func parseFlags() flags {
 	flag.BoolVar(&f.dryRun, "dry-run", false, "Preview commits without creating them")
 	flag.BoolVar(&f.verbose, "v", false, "Verbose output")
 	flag.BoolVar(&f.verbose, "verbose", false, "Verbose output")
-	flag.BoolVar(&f.reverse, "reverse", false, "Reverse HEAD commit into uncommitted changes")
+	flag.Var((*reverseFlag)(&f.reverse), "reverse", "Reverse last N commits into uncommitted changes (default 1)")
 	flag.BoolVar(&f.force, "force", false, "Force operation (for --reverse/--interactive on pushed commits)")
 	flag.BoolVar(&f.interactive, "i", false, "Interactive rebase wizard")
 	flag.BoolVar(&f.interactive, "interactive", false, "Interactive rebase wizard")
@@ -212,8 +239,8 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 	}
 
 	// Handle --reverse
-	if flags.reverse {
-		result.ExitCode = handleReverse(gitRoot, flags.force, flags.verbose)
+	if flags.reverse > 0 {
+		result.ExitCode = handleReverse(gitRoot, flags.reverse, flags.force, flags.verbose)
 		result.Duration = time.Since(startTime)
 		return result
 	}
@@ -622,28 +649,41 @@ func handleDiff(flags flags) int {
 	return 0
 }
 
-func handleReverse(gitRoot string, force, verbose bool) int {
-	printStep("🔄", "Reversing HEAD commit...")
+func handleReverse(gitRoot string, count int, force, verbose bool) int {
+	if count == 1 {
+		printStep("🔄", "Reversing HEAD commit...")
+	} else {
+		printStep("🔄", fmt.Sprintf("Reversing last %d commits...", count))
+	}
 
 	reverser := git.NewReverser(gitRoot)
 
-	// Check if commit was pushed
-	pushed, _ := reverser.WasPushed()
+	// Check if any commit in the range was pushed
+	pushed, _ := reverser.WasPushed(count)
 	if pushed && !force {
 		printStepError("Commit has been pushed")
-		printFinal("❌", "Cannot reverse pushed commit")
-		fmt.Println("\n   HEAD commit has been pushed to origin.")
+		if count == 1 {
+			printFinal("❌", "Cannot reverse pushed commit")
+			fmt.Println("\n   HEAD commit has been pushed to origin.")
+		} else {
+			printFinal("❌", "Cannot reverse pushed commits")
+			fmt.Printf("\n   One or more of the last %d commits have been pushed to origin.\n", count)
+		}
 		fmt.Println("   Reversing will require force-push to sync with remote.")
 		fmt.Println("\n   Use --reverse --force to proceed.")
 		return 1
 	}
 
-	if err := reverser.Reverse(force); err != nil {
+	if err := reverser.Reverse(count, force); err != nil {
 		printError("Failed to reverse", err)
 		return 1
 	}
 
-	printFinal("✅", "Reversed HEAD commit")
+	if count == 1 {
+		printFinal("✅", "Reversed HEAD commit")
+	} else {
+		printFinal("✅", fmt.Sprintf("Reversed last %d commits", count))
+	}
 	fmt.Println("   Changes are now uncommitted in your working directory.")
 
 	if pushed {

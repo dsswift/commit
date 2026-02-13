@@ -3,6 +3,8 @@ package git
 import (
 	"fmt"
 	"os/exec"
+
+	"github.com/dsswift/commit/internal/assert"
 )
 
 // Reverser handles reversing commits.
@@ -15,27 +17,30 @@ func NewReverser(workDir string) *Reverser {
 	return &Reverser{workDir: workDir}
 }
 
-// Reverse undoes the HEAD commit, keeping changes in the working directory.
-func (r *Reverser) Reverse(force bool) error {
+// Reverse undoes the last count commits, keeping changes in the working directory.
+func (r *Reverser) Reverse(count int, force bool) error {
+	assert.Positive(count, "reverse count must be positive")
+
 	collector := NewCollector(r.workDir)
 
-	// Check if we're on the initial commit
-	if collector.IsInitialCommit() {
-		return fmt.Errorf("cannot reverse: HEAD is the initial commit")
+	// Check that enough commits exist to reverse
+	if err := collector.HasCommitDepth(count); err != nil {
+		return err
 	}
 
-	// Check if commit has been pushed
-	pushed, err := collector.IsCommitPushed()
+	// Check if the oldest commit being reversed has been pushed
+	pushed, err := r.WasPushed(count)
 	if err != nil {
 		return fmt.Errorf("failed to check if commit is pushed: %w", err)
 	}
 
 	if pushed && !force {
-		return &PushedCommitError{}
+		return &PushedCommitError{Count: count}
 	}
 
 	// Perform soft reset (keeps changes staged)
-	cmd := exec.Command("git", "reset", "--soft", "HEAD~1")
+	ref := fmt.Sprintf("HEAD~%d", count)
+	cmd := exec.Command("git", "reset", "--soft", ref)
 	cmd.Dir = r.workDir
 
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -51,16 +56,28 @@ func (r *Reverser) Reverse(force bool) error {
 	return nil
 }
 
-// WasPushed returns true if the HEAD commit was pushed before reverse.
-func (r *Reverser) WasPushed() (bool, error) {
+// WasPushed returns true if any of the last count commits have been pushed.
+// Checks the oldest commit in the range (HEAD~(count-1)) since if that one
+// is pushed, all newer ones must also be.
+func (r *Reverser) WasPushed(count int) (bool, error) {
+	assert.Positive(count, "reverse count must be positive")
+
 	collector := NewCollector(r.workDir)
-	return collector.IsCommitPushed()
+	ref := fmt.Sprintf("HEAD~%d", count-1)
+	return collector.IsRefPushed(ref)
 }
 
 // PushedCommitError indicates attempting to reverse a pushed commit without force.
-type PushedCommitError struct{}
+type PushedCommitError struct {
+	Count int
+}
 
 func (e *PushedCommitError) Error() string {
+	if e.Count > 1 {
+		return fmt.Sprintf("One or more of the last %d commits have been pushed to origin.\n", e.Count) +
+			"Reversing will require force-push to sync with remote.\n" +
+			"Use --reverse --force to proceed."
+	}
 	return "HEAD commit has been pushed to origin.\n" +
 		"Reversing will require force-push to sync with remote.\n" +
 		"Use --reverse --force to proceed."
