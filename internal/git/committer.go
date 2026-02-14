@@ -3,6 +3,7 @@ package git
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/dsswift/commit/internal/assert"
@@ -150,6 +151,13 @@ func (c *Committer) ExecutePlannedCommit(planned types.PlannedCommit) (*types.Ex
 	assert.NotEmpty(planned.Files, "commit must have files")
 	assert.NotEmptyString(planned.Type, "commit must have type")
 	assert.NotEmptyString(planned.Message, "commit must have message")
+
+	// Defense-in-depth: reject unsafe paths before staging
+	for _, file := range planned.Files {
+		if filepath.IsAbs(file) || strings.Contains(filepath.Clean(file), "..") {
+			return nil, fmt.Errorf("unsafe file path rejected: %s", file)
+		}
+	}
 
 	// Stage only the files for this commit
 	stager := NewStager(c.workDir)

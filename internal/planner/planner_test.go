@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dsswift/commit/internal/testutil"
 	"github.com/dsswift/commit/pkg/types"
 )
 
@@ -110,7 +111,7 @@ func TestValidator_Validate_InvalidCommitType(t *testing.T) {
 
 	hasTypeError := false
 	for _, err := range result.Errors {
-		if containsString(err.Message, "not allowed") {
+		if testutil.ContainsString(err.Message, "not allowed") {
 			hasTypeError = true
 			break
 		}
@@ -380,7 +381,7 @@ func TestFilterSensitiveFiles_RemovesEmptyCommits(t *testing.T) {
 
 func TestFilterSensitiveFiles_Patterns(t *testing.T) {
 	tests := []struct {
-		filename string
+		filename    string
 		isSensitive bool
 	}{
 		{"appsettings.json", true},
@@ -434,15 +435,15 @@ func TestPreviewPlan(t *testing.T) {
 		t.Error("expected non-empty preview")
 	}
 
-	if !containsString(preview, "2 commits planned") {
+	if !testutil.ContainsString(preview, "2 commits planned") {
 		t.Errorf("expected '2 commits planned', got: %s", preview)
 	}
 
-	if !containsString(preview, "feat(api): add endpoint") {
+	if !testutil.ContainsString(preview, "feat(api): add endpoint") {
 		t.Errorf("expected scoped commit message, got: %s", preview)
 	}
 
-	if !containsString(preview, "docs: update readme") {
+	if !testutil.ContainsString(preview, "docs: update readme") {
 		t.Errorf("expected unscoped commit message, got: %s", preview)
 	}
 }
@@ -473,20 +474,61 @@ func TestExecutionError(t *testing.T) {
 
 	msg := err.Error()
 
-	if !containsString(msg, "commit 2") {
+	if !testutil.ContainsString(msg, "commit 2") {
 		t.Errorf("expected 'commit 2' (1-indexed), got: %s", msg)
 	}
 
-	if !containsString(msg, "feat(api): add feature") {
+	if !testutil.ContainsString(msg, "feat(api): add feature") {
 		t.Errorf("expected commit message in error, got: %s", msg)
 	}
 
-	if !containsString(msg, "git error") {
+	if !testutil.ContainsString(msg, "git error") {
 		t.Errorf("expected wrapped error message, got: %s", msg)
 	}
 
 	if err.Unwrap() == nil {
 		t.Error("expected Unwrap to return wrapped error")
+	}
+}
+
+func TestValidationError_Error(t *testing.T) {
+	err := &ValidationError{
+		Field:   "commits[0].type",
+		Message: "invalid type 'foo'",
+	}
+
+	got := err.Error()
+	expected := "validation error in commits[0].type: invalid type 'foo'"
+
+	if got != expected {
+		t.Errorf("ValidationError.Error() = %q, want %q", got, expected)
+	}
+}
+
+func TestIsPathSafe(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		expected bool
+	}{
+		{"absolute path", "/etc/passwd", false},
+		{"dotdot only", "..", false},
+		{"dotdot prefix", "../secret.txt", false},
+		{"embedded dotdot", "foo/../../etc/passwd", false},
+		{"normal relative path", "main.go", true},
+		{"nested relative path", "internal/planner/validator.go", true},
+		{"current dir prefix", "./main.go", true},
+		{"deeply nested", "a/b/c/d/e/file.go", true},
+		{"dotdot in middle resolving safe", "foo/bar/../baz.go", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isPathSafe(tt.path)
+			if got != tt.expected {
+				t.Errorf("isPathSafe(%q) = %v, want %v", tt.path, got, tt.expected)
+			}
+		})
 	}
 }
 
@@ -498,13 +540,4 @@ type testError struct {
 
 func (e *testError) Error() string {
 	return e.msg
-}
-
-func containsString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

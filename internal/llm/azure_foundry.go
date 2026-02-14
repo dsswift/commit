@@ -47,9 +47,7 @@ func NewAzureFoundryProvider(endpoint, apiKey, deployment, model string) (*Azure
 		deployment:  deployment,
 		model:       model,
 		isAnthropic: isAnthropic,
-		client: &http.Client{
-			Timeout: defaultAzureFoundryTimeout,
-		},
+		client:      newHTTPClient(defaultAzureFoundryTimeout),
 	}, nil
 }
 
@@ -157,8 +155,8 @@ func (p *AzureFoundryProvider) callAnthropicAPI(ctx context.Context, system, use
 
 // callOpenAIAPI makes a request using the OpenAI-compatible API format.
 func (p *AzureFoundryProvider) callOpenAIAPI(ctx context.Context, system, user string) (string, error) {
-	requestBody := openAIAPIRequest{
-		Messages: []openAIAPIMessage{
+	requestBody := chatRequest{
+		Messages: []chatMessage{
 			{Role: "system", Content: system},
 			{Role: "user", Content: user},
 		},
@@ -185,20 +183,20 @@ func (p *AzureFoundryProvider) callOpenAIAPI(ctx context.Context, system, user s
 		return "", err
 	}
 
-	var openAIResp openAIAPIResponse
-	if err := json.Unmarshal(resp.Body, &openAIResp); err != nil {
+	var chatResp chatResponse
+	if err := json.Unmarshal(resp.Body, &chatResp); err != nil {
 		return "", &ProviderError{Provider: "azure-foundry", Message: "failed to parse response", Err: err}
 	}
 
-	if len(openAIResp.Choices) == 0 {
+	if len(chatResp.Choices) == 0 {
 		return "", &ProviderError{Provider: "azure-foundry", Message: "empty response from API"}
 	}
 
-	if openAIResp.Choices[0].FinishReason == "length" {
+	if chatResp.Choices[0].FinishReason == "length" {
 		return "", &ProviderError{Provider: "azure-foundry", Message: "response truncated: exceeded max tokens limit"}
 	}
 
-	return openAIResp.Choices[0].Message.Content, nil
+	return chatResp.Choices[0].Message.Content, nil
 }
 
 // parseCommitPlan extracts a CommitPlan from the LLM response content.
@@ -213,12 +211,12 @@ func parseCommitPlan(content string) (*types.CommitPlan, error) {
 	return &plan, nil
 }
 
-// Anthropic API types
+// Anthropic API types (specific to Azure Foundry's Anthropic proxy)
 
 type anthropicAPIRequest struct {
-	Model     string               `json:"model"`
-	MaxTokens int                  `json:"max_tokens"`
-	System    string               `json:"system,omitempty"`
+	Model     string                `json:"model"`
+	MaxTokens int                   `json:"max_tokens"`
+	System    string                `json:"system,omitempty"`
 	Messages  []anthropicAPIMessage `json:"messages"`
 }
 
@@ -241,33 +239,4 @@ type anthropicAPIContent struct {
 type anthropicAPIUsage struct {
 	InputTokens  int `json:"input_tokens"`
 	OutputTokens int `json:"output_tokens"`
-}
-
-// OpenAI API types
-
-type openAIAPIRequest struct {
-	Messages    []openAIAPIMessage `json:"messages"`
-	Temperature float64            `json:"temperature,omitempty"`
-	MaxTokens   int                `json:"max_tokens,omitempty"`
-}
-
-type openAIAPIMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type openAIAPIResponse struct {
-	Choices []openAIAPIChoice `json:"choices"`
-	Usage   openAIAPIUsage    `json:"usage"`
-}
-
-type openAIAPIChoice struct {
-	Message      openAIAPIMessage `json:"message"`
-	FinishReason string           `json:"finish_reason"`
-}
-
-type openAIAPIUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
 }

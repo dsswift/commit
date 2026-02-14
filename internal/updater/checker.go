@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dsswift/commit/internal/config"
+	"github.com/dsswift/commit/internal/httpclient"
 )
 
 const (
@@ -104,9 +105,7 @@ func checkVersion(currentVersion string, skipCache bool) *VersionInfo {
 
 // fetchLatestRelease fetches the latest release from GitHub.
 func fetchLatestRelease() (*GitHubRelease, error) {
-	client := &http.Client{
-		Timeout: CheckTimeout,
-	}
+	client := httpclient.NewClient(CheckTimeout)
 
 	req, err := http.NewRequest("GET", GitHubReleasesURL, nil)
 	if err != nil {

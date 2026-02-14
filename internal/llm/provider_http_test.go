@@ -52,12 +52,12 @@ func anthropicEmptyBody() string {
 	return string(b)
 }
 
-// --- OpenAI response helpers ---
+// --- OpenAI/Grok response helpers (shared chat types) ---
 
 func openaiSuccessBody(content string) string {
-	resp := openaiResponse{
-		Choices: []openaiChoice{{
-			Message:      openaiMessage{Role: "assistant", Content: content},
+	resp := chatResponse{
+		Choices: []chatChoice{{
+			Message:      chatMessage{Role: "assistant", Content: content},
 			FinishReason: "stop",
 		}},
 	}
@@ -66,9 +66,9 @@ func openaiSuccessBody(content string) string {
 }
 
 func openaiTruncatedBody() string {
-	resp := openaiResponse{
-		Choices: []openaiChoice{{
-			Message:      openaiMessage{Role: "assistant", Content: `{"commits":[]`},
+	resp := chatResponse{
+		Choices: []chatChoice{{
+			Message:      chatMessage{Role: "assistant", Content: `{"commits":[]`},
 			FinishReason: "length",
 		}},
 	}
@@ -77,39 +77,21 @@ func openaiTruncatedBody() string {
 }
 
 func openaiEmptyBody() string {
-	resp := openaiResponse{Choices: []openaiChoice{}}
+	resp := chatResponse{Choices: []chatChoice{}}
 	b, _ := json.Marshal(resp)
 	return string(b)
 }
 
-// --- Grok response helpers ---
-
 func grokSuccessBody(content string) string {
-	resp := grokResponse{
-		Choices: []grokChoice{{
-			Message:      grokMessage{Role: "assistant", Content: content},
-			FinishReason: "stop",
-		}},
-	}
-	b, _ := json.Marshal(resp)
-	return string(b)
+	return openaiSuccessBody(content)
 }
 
 func grokTruncatedBody() string {
-	resp := grokResponse{
-		Choices: []grokChoice{{
-			Message:      grokMessage{Role: "assistant", Content: `{"commits":[]`},
-			FinishReason: "length",
-		}},
-	}
-	b, _ := json.Marshal(resp)
-	return string(b)
+	return openaiTruncatedBody()
 }
 
 func grokEmptyBody() string {
-	resp := grokResponse{Choices: []grokChoice{}}
-	b, _ := json.Marshal(resp)
-	return string(b)
+	return openaiEmptyBody()
 }
 
 // --- Gemini response helpers ---
@@ -949,7 +931,7 @@ func TestAnthropicProvider_SendsCorrectRequestBody(t *testing.T) {
 }
 
 func TestOpenAIProvider_SendsCorrectRequestBody(t *testing.T) {
-	var capturedBody openaiRequest
+	var capturedBody chatRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&capturedBody)
 		w.WriteHeader(http.StatusOK)
@@ -1133,6 +1115,8 @@ func TestAllProviders_Analyze_ValidatesCommitPlanFields(t *testing.T) {
 		{"openai", openaiSuccessBody(validCommitPlanJSON), func(u string) Provider { return newTestOpenAI(u) }},
 		{"grok", grokSuccessBody(validCommitPlanJSON), func(u string) Provider { return newTestGrok(u) }},
 		{"gemini", geminiSuccessBody(validCommitPlanJSON), func(u string) Provider { return newTestGemini(u) }},
+		{"azure-foundry-anthropic", azureAnthropicSuccessBody(validCommitPlanJSON), func(u string) Provider { return newTestAzureFoundryAnthropic(u) }},
+		{"azure-foundry-openai", openaiSuccessBody(validCommitPlanJSON), func(u string) Provider { return newTestAzureFoundryOpenAI(u) }},
 	}
 
 	for _, tc := range providers {
@@ -1163,5 +1147,227 @@ func TestAllProviders_Analyze_ValidatesCommitPlanFields(t *testing.T) {
 				t.Errorf("expected reasoning 'new feature', got %q", c.Reasoning)
 			}
 		})
+	}
+}
+
+// =====================================================================
+// Azure Foundry response helpers (Anthropic path uses anthropicAPI types)
+// =====================================================================
+
+func azureAnthropicSuccessBody(content string) string {
+	resp := anthropicAPIResponse{
+		Content:    []anthropicAPIContent{{Type: "text", Text: content}},
+		StopReason: "end_turn",
+	}
+	b, _ := json.Marshal(resp)
+	return string(b)
+}
+
+func azureAnthropicTruncatedBody() string {
+	resp := anthropicAPIResponse{
+		Content:    []anthropicAPIContent{{Type: "text", Text: `{"commits":[]`}},
+		StopReason: "max_tokens",
+	}
+	b, _ := json.Marshal(resp)
+	return string(b)
+}
+
+func azureAnthropicEmptyBody() string {
+	resp := anthropicAPIResponse{
+		Content:    []anthropicAPIContent{},
+		StopReason: "end_turn",
+	}
+	b, _ := json.Marshal(resp)
+	return string(b)
+}
+
+// --- Azure Foundry provider factory helpers ---
+
+func newTestAzureFoundryAnthropic(serverURL string) *AzureFoundryProvider {
+	p, _ := NewAzureFoundryProvider(serverURL, "test-key", "claude-3-sonnet", "claude-3-sonnet")
+	return p
+}
+
+func newTestAzureFoundryOpenAI(serverURL string) *AzureFoundryProvider {
+	p, _ := NewAzureFoundryProvider(serverURL, "test-key", "gpt-4o", "gpt-4o")
+	return p
+}
+
+// =====================================================================
+// Azure Foundry Analyze tests (Anthropic path)
+// =====================================================================
+
+func TestAzureFoundryProvider_Analyze_Anthropic_Success(t *testing.T) {
+	server := newTestServer(http.StatusOK, azureAnthropicSuccessBody(validCommitPlanJSON))
+	defer server.Close()
+
+	p := newTestAzureFoundryAnthropic(server.URL)
+	plan, err := p.Analyze(context.Background(), analysisRequest())
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if len(plan.Commits) != 1 {
+		t.Fatalf("expected 1 commit, got %d", len(plan.Commits))
+	}
+	if plan.Commits[0].Type != "feat" {
+		t.Errorf("expected type 'feat', got %q", plan.Commits[0].Type)
+	}
+	if plan.Commits[0].Message != "add endpoint" {
+		t.Errorf("expected message 'add endpoint', got %q", plan.Commits[0].Message)
+	}
+}
+
+func TestAzureFoundryProvider_Analyze_Anthropic_APIError(t *testing.T) {
+	server := newTestServer(http.StatusInternalServerError, `{"error":"internal"}`)
+	defer server.Close()
+
+	p := newTestAzureFoundryAnthropic(server.URL)
+	_, err := p.Analyze(context.Background(), analysisRequest())
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+	pe, ok := err.(*ProviderError)
+	if !ok {
+		t.Fatalf("expected *ProviderError, got %T", err)
+	}
+	if pe.Provider != "azure-foundry" {
+		t.Errorf("expected provider 'azure-foundry', got %q", pe.Provider)
+	}
+	if !strings.Contains(pe.Error(), "500") {
+		t.Errorf("expected error to contain status code, got: %s", pe.Error())
+	}
+}
+
+func TestAzureFoundryProvider_Analyze_Anthropic_Truncated(t *testing.T) {
+	server := newTestServer(http.StatusOK, azureAnthropicTruncatedBody())
+	defer server.Close()
+
+	p := newTestAzureFoundryAnthropic(server.URL)
+	_, err := p.Analyze(context.Background(), analysisRequest())
+	if err == nil {
+		t.Fatal("expected error for truncated response")
+	}
+	if !strings.Contains(err.Error(), "truncated") {
+		t.Errorf("expected 'truncated' in error, got: %s", err.Error())
+	}
+}
+
+func TestAzureFoundryProvider_Analyze_Anthropic_EmptyResponse(t *testing.T) {
+	server := newTestServer(http.StatusOK, azureAnthropicEmptyBody())
+	defer server.Close()
+
+	p := newTestAzureFoundryAnthropic(server.URL)
+	_, err := p.Analyze(context.Background(), analysisRequest())
+	if err == nil {
+		t.Fatal("expected error for empty response")
+	}
+	if !strings.Contains(err.Error(), "empty response") {
+		t.Errorf("expected 'empty response' in error, got: %s", err.Error())
+	}
+}
+
+// =====================================================================
+// Azure Foundry AnalyzeDiff tests (Anthropic path)
+// =====================================================================
+
+func TestAzureFoundryProvider_AnalyzeDiff_Anthropic_Success(t *testing.T) {
+	server := newTestServer(http.StatusOK, azureAnthropicSuccessBody("azure anthropic diff result"))
+	defer server.Close()
+
+	p := newTestAzureFoundryAnthropic(server.URL)
+	result, err := p.AnalyzeDiff(context.Background(), "system prompt", "user prompt")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if result != "azure anthropic diff result" {
+		t.Errorf("expected 'azure anthropic diff result', got %q", result)
+	}
+}
+
+// =====================================================================
+// Azure Foundry Analyze tests (OpenAI path)
+// =====================================================================
+
+func TestAzureFoundryProvider_Analyze_OpenAI_Success(t *testing.T) {
+	server := newTestServer(http.StatusOK, openaiSuccessBody(validCommitPlanJSON))
+	defer server.Close()
+
+	p := newTestAzureFoundryOpenAI(server.URL)
+	plan, err := p.Analyze(context.Background(), analysisRequest())
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if len(plan.Commits) != 1 {
+		t.Fatalf("expected 1 commit, got %d", len(plan.Commits))
+	}
+	if plan.Commits[0].Type != "feat" {
+		t.Errorf("expected type 'feat', got %q", plan.Commits[0].Type)
+	}
+	if plan.Commits[0].Message != "add endpoint" {
+		t.Errorf("expected message 'add endpoint', got %q", plan.Commits[0].Message)
+	}
+}
+
+func TestAzureFoundryProvider_Analyze_OpenAI_APIError(t *testing.T) {
+	server := newTestServer(http.StatusTooManyRequests, `{"error":"rate limit"}`)
+	defer server.Close()
+
+	p := newTestAzureFoundryOpenAI(server.URL)
+	_, err := p.Analyze(context.Background(), analysisRequest())
+	if err == nil {
+		t.Fatal("expected error for 429 response")
+	}
+	pe, ok := err.(*ProviderError)
+	if !ok {
+		t.Fatalf("expected *ProviderError, got %T", err)
+	}
+	if pe.Provider != "azure-foundry" {
+		t.Errorf("expected provider 'azure-foundry', got %q", pe.Provider)
+	}
+}
+
+func TestAzureFoundryProvider_Analyze_OpenAI_Truncated(t *testing.T) {
+	server := newTestServer(http.StatusOK, openaiTruncatedBody())
+	defer server.Close()
+
+	p := newTestAzureFoundryOpenAI(server.URL)
+	_, err := p.Analyze(context.Background(), analysisRequest())
+	if err == nil {
+		t.Fatal("expected error for truncated response")
+	}
+	if !strings.Contains(err.Error(), "truncated") {
+		t.Errorf("expected 'truncated' in error, got: %s", err.Error())
+	}
+}
+
+func TestAzureFoundryProvider_Analyze_OpenAI_EmptyResponse(t *testing.T) {
+	server := newTestServer(http.StatusOK, openaiEmptyBody())
+	defer server.Close()
+
+	p := newTestAzureFoundryOpenAI(server.URL)
+	_, err := p.Analyze(context.Background(), analysisRequest())
+	if err == nil {
+		t.Fatal("expected error for empty response")
+	}
+	if !strings.Contains(err.Error(), "empty response") {
+		t.Errorf("expected 'empty response' in error, got: %s", err.Error())
+	}
+}
+
+// =====================================================================
+// Azure Foundry AnalyzeDiff tests (OpenAI path)
+// =====================================================================
+
+func TestAzureFoundryProvider_AnalyzeDiff_OpenAI_Success(t *testing.T) {
+	server := newTestServer(http.StatusOK, openaiSuccessBody("azure openai diff result"))
+	defer server.Close()
+
+	p := newTestAzureFoundryOpenAI(server.URL)
+	result, err := p.AnalyzeDiff(context.Background(), "system prompt", "user prompt")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if result != "azure openai diff result" {
+		t.Errorf("expected 'azure openai diff result', got %q", result)
 	}
 }

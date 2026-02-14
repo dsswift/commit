@@ -4,7 +4,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev
 BUILD_TIME := $(shell date +%Y%m%d-%H%M)
 LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
 
-.PHONY: all build build-all clean test lint install
+.PHONY: all build build-all clean test bench lint install
 
 all: build
 
@@ -29,6 +29,10 @@ build-windows:
 # Run tests
 test:
 	go test -v -race -coverprofile=coverage.out ./...
+
+# Run benchmarks
+bench:
+	go test -bench=. -benchmem ./...
 
 # Run linter
 lint:

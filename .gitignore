@@ -1,5 +1,6 @@
 # Binary
 /commit
+bin/
 
 # IDE
 .idea/
@@ -11,3 +12,5 @@
 
 # Temp tooling
 .analysis/
+coverage.out
+coverage_cross.out

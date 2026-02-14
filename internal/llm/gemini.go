@@ -36,9 +36,7 @@ func NewGeminiProvider(apiKey, model string) (*GeminiProvider, error) {
 		apiKey:  apiKey,
 		model:   model,
 		baseURL: geminiAPIURL,
-		client: &http.Client{
-			Timeout: 60 * time.Second,
-		},
+		client:  newHTTPClient(60 * time.Second),
 	}, nil
 }
 
@@ -94,22 +92,8 @@ func (p *GeminiProvider) Analyze(ctx context.Context, req *types.AnalysisRequest
 		return nil, &ProviderError{Provider: "gemini", Message: "failed to parse response", Err: err}
 	}
 
-	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
-		return nil, &ProviderError{Provider: "gemini", Message: "empty response from API"}
-	}
-
-	if geminiResp.Candidates[0].FinishReason == "MAX_TOKENS" {
-		return nil, &ProviderError{Provider: "gemini", Message: "response truncated: exceeded max tokens limit"}
-	}
-
-	content := cleanContent(geminiResp.Candidates[0].Content.Parts[0].Text)
-
-	var plan types.CommitPlan
-	if err := json.Unmarshal([]byte(content), &plan); err != nil {
-		return nil, &ProviderError{Provider: "gemini", Message: "failed to parse commit plan", Err: err}
-	}
-
-	return &plan, nil
+	content, truncated := extractGeminiContent(geminiResp)
+	return processAnalyzeResponse("gemini", content, truncated)
 }
 
 // AnalyzeDiff sends a diff analysis request to Gemini and returns the analysis.
@@ -148,15 +132,8 @@ func (p *GeminiProvider) AnalyzeDiff(ctx context.Context, system, user string) (
 		return "", &ProviderError{Provider: "gemini", Message: "failed to parse response", Err: err}
 	}
 
-	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
-		return "", &ProviderError{Provider: "gemini", Message: "empty response from API"}
-	}
-
-	if geminiResp.Candidates[0].FinishReason == "MAX_TOKENS" {
-		return "", &ProviderError{Provider: "gemini", Message: "response truncated: exceeded max tokens limit"}
-	}
-
-	return geminiResp.Candidates[0].Content.Parts[0].Text, nil
+	content, truncated := extractGeminiContent(geminiResp)
+	return processTextResponse("gemini", content, truncated)
 }
 
 // apiURL returns the full API URL with model substituted.
@@ -166,7 +143,7 @@ func (p *GeminiProvider) apiURL() string {
 
 func (p *GeminiProvider) headers() map[string]string {
 	return map[string]string{
-		"Content-Type":  "application/json",
+		"Content-Type":   "application/json",
 		"x-goog-api-key": p.apiKey,
 	}
 }
@@ -196,4 +173,12 @@ type geminiResponse struct {
 type geminiCandidate struct {
 	Content      geminiContent `json:"content"`
 	FinishReason string        `json:"finishReason"`
+}
+
+// extractGeminiContent returns the text and truncation flag from a Gemini response.
+func extractGeminiContent(resp geminiResponse) (string, bool) {
+	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+		return "", false
+	}
+	return resp.Candidates[0].Content.Parts[0].Text, resp.Candidates[0].FinishReason == "MAX_TOKENS"
 }

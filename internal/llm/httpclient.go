@@ -8,7 +8,26 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/dsswift/commit/internal/httpclient"
 )
+
+// newHTTPClient creates an HTTP client using the shared transport with the given timeout.
+func newHTTPClient(timeout time.Duration) *http.Client {
+	return httpclient.NewClient(timeout)
+}
+
+// maxRetries is the total number of attempts (1 initial + 2 retries).
+const maxRetries = 3
+
+// retryableStatusCode returns true for HTTP status codes that warrant a retry.
+func retryableStatusCode(code int) bool {
+	return code == http.StatusTooManyRequests ||
+		code == http.StatusBadGateway ||
+		code == http.StatusServiceUnavailable ||
+		code == http.StatusGatewayTimeout
+}
 
 // llmRequest describes an HTTP request to an LLM provider.
 type llmRequest struct {
@@ -27,44 +46,78 @@ type llmResponse struct {
 	Body       []byte
 }
 
-// doRequest marshals body, sends the HTTP request, reads the response, and checks status.
+// doRequest marshals body, sends the HTTP request with retry, reads the response, and checks status.
 func doRequest(req *llmRequest) (*llmResponse, error) {
 	bodyBytes, err := json.Marshal(req.body)
 	if err != nil {
 		return nil, &ProviderError{Provider: req.provider, Message: "failed to marshal request", Err: err}
 	}
 
-	httpReq, err := http.NewRequestWithContext(req.ctx, req.method, req.url, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return nil, &ProviderError{Provider: req.provider, Message: "failed to create request", Err: err}
-	}
+	var lastErr error
+	backoff := 500 * time.Millisecond
 
-	for k, v := range req.headers {
-		httpReq.Header.Set(k, v)
-	}
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			// Wait with exponential backoff, respecting context cancellation
+			select {
+			case <-req.ctx.Done():
+				return nil, &ProviderError{Provider: req.provider, Message: "request cancelled", Err: req.ctx.Err()}
+			case <-time.After(backoff):
+			}
+			backoff *= 2
+		}
 
-	resp, err := req.client.Do(httpReq)
-	if err != nil {
-		return nil, &ProviderError{Provider: req.provider, Message: "request failed", Err: err}
-	}
-	defer resp.Body.Close() //nolint:errcheck // HTTP response body
+		httpReq, err := http.NewRequestWithContext(req.ctx, req.method, req.url, bytes.NewReader(bodyBytes))
+		if err != nil {
+			return nil, &ProviderError{Provider: req.provider, Message: "failed to create request", Err: err}
+		}
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, &ProviderError{Provider: req.provider, Message: "failed to read response", Err: err}
-	}
+		for k, v := range req.headers {
+			httpReq.Header.Set(k, v)
+		}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, &ProviderError{
+		resp, err := req.client.Do(httpReq)
+		if err != nil {
+			// Network errors are retryable
+			lastErr = &ProviderError{Provider: req.provider, Message: "request failed", Err: err}
+			// But context cancellation is not retryable
+			if req.ctx.Err() != nil {
+				return nil, lastErr
+			}
+			continue
+		}
+
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close() //nolint:errcheck // HTTP response body
+		if err != nil {
+			return nil, &ProviderError{Provider: req.provider, Message: "failed to read response", Err: err}
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			return &llmResponse{
+				StatusCode: resp.StatusCode,
+				Body:       respBody,
+			}, nil
+		}
+
+		// Sanitize error body to prevent credential leakage
+		errorBody := string(respBody)
+		if len(errorBody) > 500 {
+			errorBody = errorBody[:500] + "... (truncated)"
+		}
+
+		lastErr = &ProviderError{
 			Provider: req.provider,
-			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(respBody)),
+			Message:  fmt.Sprintf("API error (status %d): %s", resp.StatusCode, errorBody),
+		}
+
+		// Only retry on retryable status codes
+		if !retryableStatusCode(resp.StatusCode) {
+			return nil, lastErr
 		}
 	}
 
-	return &llmResponse{
-		StatusCode: resp.StatusCode,
-		Body:       respBody,
-	}, nil
+	return nil, lastErr
 }
 
 // cleanContent strips markdown code fences from LLM response text.

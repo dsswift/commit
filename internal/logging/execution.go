@@ -117,9 +117,9 @@ func (l *ExecutionLogger) LogGitLog(recentCommits []string) {
 // LogContextBuilt logs the analysis context summary.
 func (l *ExecutionLogger) LogContextBuilt(fileCount int, diffChars int, scopes []string) {
 	l.Log("context_built", map[string]any{
-		"file_count":      fileCount,
+		"file_count":       fileCount,
 		"total_diff_chars": diffChars,
-		"scopes_detected": scopes,
+		"scopes_detected":  scopes,
 	})
 }
 

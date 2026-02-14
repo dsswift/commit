@@ -230,8 +230,8 @@ func TestResolveScope(t *testing.T) {
 		{"src/api/client.go", "api"},
 		{"src/main.go", "core"},
 		{"docs/readme.md", "docs"},
-		{"README.md", "repo"},       // Falls back to default
-		{"other/file.go", "repo"},   // Falls back to default
+		{"README.md", "repo"},     // Falls back to default
+		{"other/file.go", "repo"}, // Falls back to default
 	}
 
 	for _, tt := range tests {

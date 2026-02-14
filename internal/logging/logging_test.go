@@ -304,6 +304,78 @@ func TestExecutionLogger_AllLogMethods(t *testing.T) {
 	}
 }
 
+func TestRotateRegistry(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "logging-rotate-*")
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+
+	regPath := filepath.Join(tmpDir, "registry.jsonl")
+
+	// Create registry file and two backups
+	_ = os.WriteFile(regPath, []byte("current"), 0600)
+	_ = os.WriteFile(regPath+".1", []byte("backup1"), 0600)
+	_ = os.WriteFile(regPath+".2", []byte("backup2"), 0600)
+
+	rotateRegistry(regPath)
+
+	// Original file should be gone (renamed to .1)
+	if _, err := os.Stat(regPath); !os.IsNotExist(err) {
+		t.Error("expected original file to be renamed away")
+	}
+
+	// .1 should now contain "current" (was the original)
+	data, err := os.ReadFile(regPath + ".1")
+	if err != nil {
+		t.Fatalf("failed to read .1 backup: %v", err)
+	}
+	if string(data) != "current" {
+		t.Errorf(".1 backup content = %q, want %q", string(data), "current")
+	}
+
+	// .2 should now contain "backup1" (was .1)
+	data, err = os.ReadFile(regPath + ".2")
+	if err != nil {
+		t.Fatalf("failed to read .2 backup: %v", err)
+	}
+	if string(data) != "backup1" {
+		t.Errorf(".2 backup content = %q, want %q", string(data), "backup1")
+	}
+}
+
+func TestShouldRotate(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "logging-rotate-*")
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+
+	// Small file should not need rotation
+	smallFile := filepath.Join(tmpDir, "small.jsonl")
+	_ = os.WriteFile(smallFile, []byte("small"), 0600)
+	if shouldRotate(smallFile) {
+		t.Error("shouldRotate returned true for small file")
+	}
+
+	// Non-existent file should not need rotation
+	if shouldRotate(filepath.Join(tmpDir, "missing")) {
+		t.Error("shouldRotate returned true for non-existent file")
+	}
+
+	// File > 10MB should need rotation
+	largeFile := filepath.Join(tmpDir, "large.jsonl")
+	f, err := os.Create(largeFile)
+	if err != nil {
+		t.Fatalf("failed to create large file: %v", err)
+	}
+	// Write 10MB + 1 byte
+	buf := make([]byte, 1024*1024) // 1MB chunks
+	for i := 0; i < 10; i++ {
+		_, _ = f.Write(buf)
+	}
+	_, _ = f.Write([]byte("x")) // push over threshold
+	_ = f.Close()               //nolint:errcheck // test file close
+
+	if !shouldRotate(largeFile) {
+		t.Error("shouldRotate returned false for file > 10MB")
+	}
+}
+
 type testError struct {
 	msg string
 }

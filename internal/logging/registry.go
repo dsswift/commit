@@ -20,15 +20,15 @@ const (
 
 // RegistryEntry represents a single execution in the registry.
 type RegistryEntry struct {
-	ExecutionID    string `json:"execution_id"`
-	Timestamp      string `json:"timestamp"`
-	Version        string `json:"version"`
-	CWD            string `json:"cwd"`
+	ExecutionID    string   `json:"execution_id"`
+	Timestamp      string   `json:"timestamp"`
+	Version        string   `json:"version"`
+	CWD            string   `json:"cwd"`
 	Args           []string `json:"args"`
-	GitRoot        string `json:"git_root"`
-	DurationMS     int64  `json:"duration_ms"`
-	ExitCode       int    `json:"exit_code"`
-	CommitsCreated int    `json:"commits_created"`
+	GitRoot        string   `json:"git_root"`
+	DurationMS     int64    `json:"duration_ms"`
+	ExitCode       int      `json:"exit_code"`
+	CommitsCreated int      `json:"commits_created"`
 }
 
 // GenerateExecutionID creates a unique execution ID.

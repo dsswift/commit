@@ -1,71 +1,14 @@
 package analyzer
 
 import (
-	"os"
-	"os/exec"
-	"path/filepath"
 	"testing"
 
+	"github.com/dsswift/commit/internal/testutil"
 	"github.com/dsswift/commit/pkg/types"
 )
 
-// testRepo creates a temporary git repository for testing.
-func testRepo(t *testing.T) (string, func()) {
-	t.Helper()
-
-	tmpDir, err := os.MkdirTemp("", "analyzer-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-
-	cleanup := func() {
-		_ = os.RemoveAll(tmpDir)
-	}
-
-	cmd := exec.Command("git", "init")
-	cmd.Dir = tmpDir
-	if err := cmd.Run(); err != nil {
-		cleanup()
-		t.Fatalf("failed to init git repo: %v", err)
-	}
-
-	cmd = exec.Command("git", "config", "user.email", "test@test.com")
-	cmd.Dir = tmpDir
-	_ = cmd.Run()
-
-	cmd = exec.Command("git", "config", "user.name", "Test User")
-	cmd.Dir = tmpDir
-	_ = cmd.Run()
-
-	return tmpDir, cleanup
-}
-
-func createFile(t *testing.T, repoDir, filename, content string) {
-	t.Helper()
-	path := filepath.Join(repoDir, filename)
-	dir := filepath.Dir(path)
-	_ = os.MkdirAll(dir, 0755)
-	_ = os.WriteFile(path, []byte(content), 0644)
-}
-
-func gitAdd(t *testing.T, repoDir string, files ...string) {
-	t.Helper()
-	args := append([]string{"add"}, files...)
-	cmd := exec.Command("git", args...)
-	cmd.Dir = repoDir
-	_ = cmd.Run()
-}
-
-func gitCommit(t *testing.T, repoDir, message string) {
-	t.Helper()
-	cmd := exec.Command("git", "commit", "-m", message)
-	cmd.Dir = repoDir
-	_ = cmd.Run()
-}
-
 func TestContextBuilder_Build_NoChanges(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	config := &types.RepoConfig{}
 	builder := NewContextBuilder(repoDir, config)
@@ -81,17 +24,16 @@ func TestContextBuilder_Build_NoChanges(t *testing.T) {
 }
 
 func TestContextBuilder_Build_WithChanges(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create initial commit
-	createFile(t, repoDir, "existing.txt", "initial")
-	gitAdd(t, repoDir, "existing.txt")
-	gitCommit(t, repoDir, "initial commit")
+	testutil.CreateFile(t, repoDir, "existing.txt", "initial")
+	testutil.GitAdd(t, repoDir, "existing.txt")
+	testutil.GitCommit(t, repoDir, "initial commit")
 
 	// Create new file and modify existing
-	createFile(t, repoDir, "new.txt", "new content")
-	createFile(t, repoDir, "existing.txt", "modified")
+	testutil.CreateFile(t, repoDir, "new.txt", "new content")
+	testutil.CreateFile(t, repoDir, "existing.txt", "modified")
 
 	config := &types.RepoConfig{}
 	builder := NewContextBuilder(repoDir, config)
@@ -111,19 +53,18 @@ func TestContextBuilder_Build_WithChanges(t *testing.T) {
 }
 
 func TestContextBuilder_Build_WithScopes(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create initial commit (required for git diff)
-	createFile(t, repoDir, "init.txt", "init")
-	gitAdd(t, repoDir, "init.txt")
-	gitCommit(t, repoDir, "initial commit")
+	testutil.CreateFile(t, repoDir, "init.txt", "init")
+	testutil.GitAdd(t, repoDir, "init.txt")
+	testutil.GitCommit(t, repoDir, "initial commit")
 
 	// Create files in different directories and stage them
 	// (staged files show as individual paths, untracked might show as directories)
-	createFile(t, repoDir, "src/api/handler.go", "api code")
-	createFile(t, repoDir, "src/core/main.go", "core code")
-	gitAdd(t, repoDir, "src/api/handler.go", "src/core/main.go")
+	testutil.CreateFile(t, repoDir, "src/api/handler.go", "api code")
+	testutil.CreateFile(t, repoDir, "src/core/main.go", "core code")
+	testutil.GitAdd(t, repoDir, "src/api/handler.go", "src/core/main.go")
 
 	// Note: Scopes must be sorted by specificity (longest first) for proper matching
 	// In production, LoadRepoConfig does this sorting
@@ -162,18 +103,17 @@ func TestContextBuilder_Build_WithScopes(t *testing.T) {
 }
 
 func TestContextBuilder_Build_StagedOnly(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create initial commit
-	createFile(t, repoDir, "committed.txt", "committed")
-	gitAdd(t, repoDir, "committed.txt")
-	gitCommit(t, repoDir, "initial")
+	testutil.CreateFile(t, repoDir, "committed.txt", "committed")
+	testutil.GitAdd(t, repoDir, "committed.txt")
+	testutil.GitCommit(t, repoDir, "initial")
 
 	// Create staged and unstaged files
-	createFile(t, repoDir, "staged.txt", "staged")
-	createFile(t, repoDir, "unstaged.txt", "unstaged")
-	gitAdd(t, repoDir, "staged.txt")
+	testutil.CreateFile(t, repoDir, "staged.txt", "staged")
+	testutil.CreateFile(t, repoDir, "unstaged.txt", "unstaged")
+	testutil.GitAdd(t, repoDir, "staged.txt")
 
 	config := &types.RepoConfig{}
 	builder := NewContextBuilder(repoDir, config)
@@ -195,18 +135,17 @@ func TestContextBuilder_Build_StagedOnly(t *testing.T) {
 }
 
 func TestContextBuilder_Build_IncludesRecentCommits(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create several commits
 	for i := 1; i <= 3; i++ {
-		createFile(t, repoDir, "file.txt", string(rune('0'+i)))
-		gitAdd(t, repoDir, "file.txt")
-		gitCommit(t, repoDir, "commit "+string(rune('0'+i)))
+		testutil.CreateFile(t, repoDir, "file.txt", string(rune('0'+i)))
+		testutil.GitAdd(t, repoDir, "file.txt")
+		testutil.GitCommit(t, repoDir, "commit "+string(rune('0'+i)))
 	}
 
 	// Create a new change
-	createFile(t, repoDir, "new.txt", "new")
+	testutil.CreateFile(t, repoDir, "new.txt", "new")
 
 	config := &types.RepoConfig{}
 	builder := NewContextBuilder(repoDir, config)
@@ -222,15 +161,14 @@ func TestContextBuilder_Build_IncludesRecentCommits(t *testing.T) {
 }
 
 func TestContextBuilder_Build_IncludesRules(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create initial commit (required for git diff)
-	createFile(t, repoDir, "init.txt", "init")
-	gitAdd(t, repoDir, "init.txt")
-	gitCommit(t, repoDir, "initial commit")
+	testutil.CreateFile(t, repoDir, "init.txt", "init")
+	testutil.GitAdd(t, repoDir, "init.txt")
+	testutil.GitCommit(t, repoDir, "initial commit")
 
-	createFile(t, repoDir, "file.txt", "content")
+	testutil.CreateFile(t, repoDir, "file.txt", "content")
 
 	config := &types.RepoConfig{
 		CommitTypes: types.CommitTypeConfig{
@@ -255,18 +193,17 @@ func TestContextBuilder_Build_IncludesRules(t *testing.T) {
 }
 
 func TestContextBuilder_BuildForFiles(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create initial commit
-	createFile(t, repoDir, "file1.txt", "initial1")
-	createFile(t, repoDir, "file2.txt", "initial2")
-	gitAdd(t, repoDir, "file1.txt", "file2.txt")
-	gitCommit(t, repoDir, "initial")
+	testutil.CreateFile(t, repoDir, "file1.txt", "initial1")
+	testutil.CreateFile(t, repoDir, "file2.txt", "initial2")
+	testutil.GitAdd(t, repoDir, "file1.txt", "file2.txt")
+	testutil.GitCommit(t, repoDir, "initial")
 
 	// Modify files
-	createFile(t, repoDir, "file1.txt", "modified1")
-	createFile(t, repoDir, "file2.txt", "modified2")
+	testutil.CreateFile(t, repoDir, "file1.txt", "modified1")
+	testutil.CreateFile(t, repoDir, "file2.txt", "modified2")
 
 	config := &types.RepoConfig{}
 	builder := NewContextBuilder(repoDir, config)
@@ -312,21 +249,12 @@ func TestSummary(t *testing.T) {
 	}
 
 	// Should mention file count
-	if !containsString(summary, "3 files") {
+	if !testutil.ContainsString(summary, "3 files") {
 		t.Errorf("expected summary to mention '3 files', got: %s", summary)
 	}
 
 	// Should mention scope count
-	if !containsString(summary, "2 scopes") {
+	if !testutil.ContainsString(summary, "2 scopes") {
 		t.Errorf("expected summary to mention '2 scopes', got: %s", summary)
 	}
-}
-
-func containsString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

@@ -3,6 +3,7 @@ package llm
 import (
 	"testing"
 
+	"github.com/dsswift/commit/internal/testutil"
 	"github.com/dsswift/commit/pkg/types"
 )
 
@@ -29,11 +30,11 @@ func TestBuildPrompt(t *testing.T) {
 		t.Error("expected non-empty system prompt")
 	}
 
-	if !containsString(system, "git commit message generator") {
+	if !testutil.ContainsString(system, "git commit message generator") {
 		t.Error("system prompt should mention purpose")
 	}
 
-	if !containsString(system, "conventional commit format") {
+	if !testutil.ContainsString(system, "conventional commit format") {
 		t.Error("system prompt should mention conventional commits")
 	}
 
@@ -42,19 +43,19 @@ func TestBuildPrompt(t *testing.T) {
 		t.Error("expected non-empty user prompt")
 	}
 
-	if !containsString(user, "src/api/handler.go") {
+	if !testutil.ContainsString(user, "src/api/handler.go") {
 		t.Error("user prompt should contain file paths")
 	}
 
-	if !containsString(user, "diff content here") {
+	if !testutil.ContainsString(user, "diff content here") {
 		t.Error("user prompt should contain diff")
 	}
 
-	if !containsString(user, "feat: add auth") {
+	if !testutil.ContainsString(user, "feat: add auth") {
 		t.Error("user prompt should contain recent commits")
 	}
 
-	if !containsString(user, "Has scopes: true") {
+	if !testutil.ContainsString(user, "Has scopes: true") {
 		t.Error("user prompt should indicate hasScopes")
 	}
 }
@@ -75,7 +76,7 @@ func TestBuildPrompt_NoRecentCommits(t *testing.T) {
 
 	_, user := BuildPrompt(req)
 
-	if !containsString(user, "(no recent commits)") {
+	if !testutil.ContainsString(user, "(no recent commits)") {
 		t.Error("user prompt should indicate no recent commits")
 	}
 }
@@ -97,7 +98,7 @@ func TestBuildPrompt_SingleCommit(t *testing.T) {
 
 	_, user := BuildPrompt(req)
 
-	if !containsString(user, "ONE commit") {
+	if !testutil.ContainsString(user, "ONE commit") {
 		t.Error("user prompt should instruct single commit when SingleCommit is true")
 	}
 }
@@ -118,7 +119,7 @@ func TestBuildPrompt_MultipleCommits(t *testing.T) {
 
 	_, user := BuildPrompt(req)
 
-	if containsString(user, "ONE commit") {
+	if testutil.ContainsString(user, "ONE commit") {
 		t.Error("user prompt should NOT instruct single commit when SingleCommit is false")
 	}
 }
@@ -149,16 +150,16 @@ func TestBuildPrompt_TypeSubstitution(t *testing.T) {
 	}
 	system, user := BuildPrompt(req)
 
-	if !containsString(system, "TYPE SUBSTITUTION") {
+	if !testutil.ContainsString(system, "TYPE SUBSTITUTION") {
 		t.Error("system prompt should contain TYPE SUBSTITUTION section")
 	}
-	if !containsString(system, "refactor") {
+	if !testutil.ContainsString(system, "refactor") {
 		t.Error("system prompt should mention refactor in substitution rules")
 	}
-	if !containsString(system, "chore") {
+	if !testutil.ContainsString(system, "chore") {
 		t.Error("system prompt should mention chore as fallback")
 	}
-	if !containsString(user, "feat | fix | chore") {
+	if !testutil.ContainsString(user, "feat | fix | chore") {
 		t.Error("user prompt should format types with pipe separators")
 	}
 }
@@ -354,7 +355,7 @@ func TestProviderError(t *testing.T) {
 		Err:      &testError{"connection refused"},
 	}
 
-	if !containsString(wrapped.Error(), "connection refused") {
+	if !testutil.ContainsString(wrapped.Error(), "connection refused") {
 		t.Errorf("expected wrapped error in message: %q", wrapped.Error())
 	}
 
@@ -416,13 +417,4 @@ type testError struct {
 
 func (e *testError) Error() string {
 	return e.msg
-}
-
-func containsString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

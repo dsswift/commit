@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/dsswift/commit/pkg/types"
 )
 
 func TestParseEnvFile(t *testing.T) {
@@ -407,6 +409,126 @@ func TestSetConfigValue(t *testing.T) {
 			t.Errorf("old value should not be present")
 		}
 	})
+}
+
+func TestValidateAPIKey_AllProviders(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      *types.UserConfig
+		expectError bool
+		expectVar   string // expected EnvVar in MissingAPIKeyError
+	}{
+		// anthropic
+		{
+			name:        "anthropic missing key",
+			config:      &types.UserConfig{Provider: "anthropic"},
+			expectError: true,
+			expectVar:   "ANTHROPIC_API_KEY",
+		},
+		{
+			name:        "anthropic with key",
+			config:      &types.UserConfig{Provider: "anthropic", AnthropicAPIKey: "sk-ant-test"},
+			expectError: false,
+		},
+		// openai
+		{
+			name:        "openai missing key",
+			config:      &types.UserConfig{Provider: "openai"},
+			expectError: true,
+			expectVar:   "OPENAI_API_KEY",
+		},
+		{
+			name:        "openai with key",
+			config:      &types.UserConfig{Provider: "openai", OpenAIAPIKey: "sk-test"},
+			expectError: false,
+		},
+		// grok
+		{
+			name:        "grok missing key",
+			config:      &types.UserConfig{Provider: "grok"},
+			expectError: true,
+			expectVar:   "GROK_API_KEY",
+		},
+		{
+			name:        "grok with key",
+			config:      &types.UserConfig{Provider: "grok", GrokAPIKey: "grok-test"},
+			expectError: false,
+		},
+		// gemini
+		{
+			name:        "gemini missing key",
+			config:      &types.UserConfig{Provider: "gemini"},
+			expectError: true,
+			expectVar:   "GEMINI_API_KEY",
+		},
+		{
+			name:        "gemini with key",
+			config:      &types.UserConfig{Provider: "gemini", GeminiAPIKey: "gem-test"},
+			expectError: false,
+		},
+		// azure-foundry
+		{
+			name:        "azure-foundry missing endpoint",
+			config:      &types.UserConfig{Provider: "azure-foundry"},
+			expectError: true,
+			expectVar:   "AZURE_FOUNDRY_ENDPOINT",
+		},
+		{
+			name: "azure-foundry endpoint but missing api key",
+			config: &types.UserConfig{
+				Provider:             "azure-foundry",
+				AzureFoundryEndpoint: "https://test.openai.azure.com",
+			},
+			expectError: true,
+			expectVar:   "AZURE_FOUNDRY_API_KEY",
+		},
+		{
+			name: "azure-foundry endpoint and key but missing deployment",
+			config: &types.UserConfig{
+				Provider:             "azure-foundry",
+				AzureFoundryEndpoint: "https://test.openai.azure.com",
+				AzureFoundryAPIKey:   "test-key",
+			},
+			expectError: true,
+			expectVar:   "AZURE_FOUNDRY_DEPLOYMENT",
+		},
+		{
+			name: "azure-foundry all fields set",
+			config: &types.UserConfig{
+				Provider:               "azure-foundry",
+				AzureFoundryEndpoint:   "https://test.openai.azure.com",
+				AzureFoundryAPIKey:     "test-key",
+				AzureFoundryDeployment: "gpt-4",
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateAPIKey(tt.config)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatal("expected MissingAPIKeyError but got nil")
+				}
+				apiErr, ok := err.(*MissingAPIKeyError)
+				if !ok {
+					t.Fatalf("expected *MissingAPIKeyError, got %T: %v", err, err)
+				}
+				if apiErr.Provider != tt.config.Provider {
+					t.Errorf("expected provider %q, got %q", tt.config.Provider, apiErr.Provider)
+				}
+				if apiErr.EnvVar != tt.expectVar {
+					t.Errorf("expected env var %q, got %q", tt.expectVar, apiErr.EnvVar)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("expected nil error, got: %v", err)
+				}
+			}
+		})
+	}
 }
 
 func TestErrorTypes(t *testing.T) {

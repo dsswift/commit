@@ -18,7 +18,8 @@ import (
 
 // Collector gathers git state information.
 type Collector struct {
-	workDir string
+	workDir      string
+	cachedStatus *types.GitStatus
 }
 
 // NewCollector creates a new git collector for the given directory.
@@ -53,8 +54,12 @@ type statusEntry struct {
 	workTreeStatus byte
 }
 
-// Status returns the current git status.
+// Status returns the current git status. Results are cached after the first call.
 func (c *Collector) Status() (*types.GitStatus, error) {
+	if c.cachedStatus != nil {
+		return c.cachedStatus, nil
+	}
+
 	cmd := exec.Command("git", "status", "--porcelain")
 	cmd.Dir = c.workDir
 
@@ -130,7 +135,13 @@ func (c *Collector) Status() (*types.GitStatus, error) {
 		}
 	}
 
+	c.cachedStatus = status
 	return status, nil
+}
+
+// InvalidateStatusCache clears the cached status, forcing the next Status() call to re-query git.
+func (c *Collector) InvalidateStatusCache() {
+	c.cachedStatus = nil
 }
 
 // IsIgnored checks if a file is ignored by .gitignore.
@@ -385,17 +396,17 @@ func (c *Collector) AbsolutePath(relativePath string) string {
 	return filepath.Join(c.workDir, relativePath)
 }
 
+// diffStatPattern is pre-compiled for performance (called per diff-stat invocation).
+var diffStatPattern = regexp.MustCompile(`^\s*(.+?)\s*\|\s*(\d+)\s*(.*)$`)
+
 // parseDiffStat parses git diff --stat output into a map of file -> summary.
 func parseDiffStat(output string) map[string]string {
 	result := make(map[string]string)
 
-	// Pattern: filename | count +++ ---
-	statPattern := regexp.MustCompile(`^\s*(.+?)\s*\|\s*(\d+)\s*(.*)$`)
-
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
 		line := scanner.Text()
-		matches := statPattern.FindStringSubmatch(line)
+		matches := diffStatPattern.FindStringSubmatch(line)
 		if len(matches) == 4 {
 			filename := strings.TrimSpace(matches[1])
 			result[filename] = matches[2] + " " + matches[3]

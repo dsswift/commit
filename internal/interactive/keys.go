@@ -13,13 +13,13 @@ type KeyMap struct {
 	Back   key.Binding
 	Cancel key.Binding
 
-	Tab       key.Binding
-	Pick      key.Binding
-	Squash    key.Binding
-	Reword    key.Binding
-	Drop      key.Binding
-	EditMsg   key.Binding
-	LoadMore  key.Binding
+	Tab      key.Binding
+	Pick     key.Binding
+	Squash   key.Binding
+	Reword   key.Binding
+	Drop     key.Binding
+	EditMsg  key.Binding
+	LoadMore key.Binding
 
 	Help key.Binding
 }

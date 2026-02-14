@@ -13,6 +13,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/dsswift/commit/internal/httpclient"
 )
 
 const (
@@ -85,22 +87,23 @@ func Upgrade(currentVersion string) *UpgradeResult {
 	}
 	defer os.Remove(tempPath) //nolint:errcheck // best-effort cleanup
 
-	// Verify checksum
+	// Verify checksum (fail closed for tagged releases)
 	checksums, checksumErr := downloadChecksums(release.TagName)
 	if checksumErr != nil {
-		// Older releases may not have checksums.txt -- warn but continue
-		fmt.Fprintf(os.Stderr, "warning: checksum file not available for %s, skipping verification\n", release.TagName)
-	} else {
-		binaryName := buildBinaryName()
-		expectedHash, found := checksums[binaryName]
-		if !found {
-			fmt.Fprintf(os.Stderr, "warning: no checksum entry for %s, skipping verification\n", binaryName)
-		} else {
-			if err := verifyChecksum(tempPath, expectedHash); err != nil {
-				result.Error = fmt.Errorf("checksum verification failed: %w", err)
-				return result
-			}
-		}
+		result.Error = fmt.Errorf("checksum file not available for %s: %w (refusing to install unverified binary)", release.TagName, checksumErr)
+		return result
+	}
+
+	binaryName := buildBinaryName()
+	expectedHash, found := checksums[binaryName]
+	if !found {
+		result.Error = fmt.Errorf("no checksum entry for %s in release %s (refusing to install unverified binary)", binaryName, release.TagName)
+		return result
+	}
+
+	if err := verifyChecksum(tempPath, expectedHash); err != nil {
+		result.Error = fmt.Errorf("checksum verification failed: %w", err)
+		return result
 	}
 
 	// Replace current binary
@@ -135,9 +138,7 @@ func buildDownloadURL(version string) string {
 
 // downloadBinary downloads a binary from the given URL to a temp file.
 func downloadBinary(url string) (string, error) {
-	client := &http.Client{
-		Timeout: DownloadTimeout,
-	}
+	client := httpclient.NewClient(DownloadTimeout)
 
 	resp, err := client.Get(url)
 	if err != nil {
@@ -220,9 +221,7 @@ func buildBinaryName() string {
 func downloadChecksums(version string) (map[string]string, error) {
 	url := fmt.Sprintf(GitHubChecksumDownloadURL, version)
 
-	client := &http.Client{
-		Timeout: DownloadTimeout,
-	}
+	client := httpclient.NewClient(DownloadTimeout)
 
 	resp, err := client.Get(url)
 	if err != nil {
