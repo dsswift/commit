@@ -13,6 +13,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/dsswift/commit/internal/httpclient"
 )
 
 const (
@@ -136,9 +138,7 @@ func buildDownloadURL(version string) string {
 
 // downloadBinary downloads a binary from the given URL to a temp file.
 func downloadBinary(url string) (string, error) {
-	client := &http.Client{
-		Timeout: DownloadTimeout,
-	}
+	client := httpclient.NewClient(DownloadTimeout)
 
 	resp, err := client.Get(url)
 	if err != nil {
@@ -221,9 +221,7 @@ func buildBinaryName() string {
 func downloadChecksums(version string) (map[string]string, error) {
 	url := fmt.Sprintf(GitHubChecksumDownloadURL, version)
 
-	client := &http.Client{
-		Timeout: DownloadTimeout,
-	}
+	client := httpclient.NewClient(DownloadTimeout)
 
 	resp, err := client.Get(url)
 	if err != nil {
