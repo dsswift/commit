@@ -84,22 +84,8 @@ func (p *AnthropicProvider) Analyze(ctx context.Context, req *types.AnalysisRequ
 		return nil, &ProviderError{Provider: "anthropic", Message: "failed to parse response", Err: err}
 	}
 
-	if len(anthropicResp.Content) == 0 {
-		return nil, &ProviderError{Provider: "anthropic", Message: "empty response from API"}
-	}
-
-	if anthropicResp.StopReason == "max_tokens" {
-		return nil, &ProviderError{Provider: "anthropic", Message: "response truncated: exceeded max tokens limit"}
-	}
-
-	content := cleanContent(anthropicResp.Content[0].Text)
-
-	var plan types.CommitPlan
-	if err := json.Unmarshal([]byte(content), &plan); err != nil {
-		return nil, &ProviderError{Provider: "anthropic", Message: "failed to parse commit plan", Err: err}
-	}
-
-	return &plan, nil
+	content := extractAnthropicContent(anthropicResp)
+	return processAnalyzeResponse("anthropic", content, anthropicResp.StopReason == "max_tokens")
 }
 
 // AnalyzeDiff sends a diff analysis request to Anthropic and returns the analysis.
@@ -131,15 +117,8 @@ func (p *AnthropicProvider) AnalyzeDiff(ctx context.Context, system, user string
 		return "", &ProviderError{Provider: "anthropic", Message: "failed to parse response", Err: err}
 	}
 
-	if len(anthropicResp.Content) == 0 {
-		return "", &ProviderError{Provider: "anthropic", Message: "empty response from API"}
-	}
-
-	if anthropicResp.StopReason == "max_tokens" {
-		return "", &ProviderError{Provider: "anthropic", Message: "response truncated: exceeded max tokens limit"}
-	}
-
-	return anthropicResp.Content[0].Text, nil
+	content := extractAnthropicContent(anthropicResp)
+	return processTextResponse("anthropic", content, anthropicResp.StopReason == "max_tokens")
 }
 
 func (p *AnthropicProvider) headers() map[string]string {
@@ -176,4 +155,12 @@ type anthropicContent struct {
 type anthropicUsage struct {
 	InputTokens  int `json:"input_tokens"`
 	OutputTokens int `json:"output_tokens"`
+}
+
+// extractAnthropicContent returns the text from the first content block, or empty string.
+func extractAnthropicContent(resp anthropicResponse) string {
+	if len(resp.Content) == 0 {
+		return ""
+	}
+	return resp.Content[0].Text
 }
