@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.13.0](https://github.com/dsswift/commit/compare/v1.12.0...v1.13.0) (2026-02-14)
+
+
+### Features
+
+* add /test command for local CI pipeline ([8d38781](https://github.com/dsswift/commit/commit/8d38781670375468127b31b26e322fa9ad67eb2f))
+* add checksum verification to installer ([ebfb9b9](https://github.com/dsswift/commit/commit/ebfb9b9b6a5526f8e5dcb993b064507ca1810f75))
+* add commit plan validation ([10ca191](https://github.com/dsswift/commit/commit/10ca191a1b16154c6998c1c4a07f43a7abfbfb9f))
+* add install script with auto-detection ([1b6017c](https://github.com/dsswift/commit/commit/1b6017c5803803e87e14391825b4da794ebab1bd))
+* add version and build time display ([0685b63](https://github.com/dsswift/commit/commit/0685b63a0dbfa555d5334ae0ea405ff7f09c7c2b))
+
+
+### Bug Fixes
+
+* add lint config verify to test command ([fc4b571](https://github.com/dsswift/commit/commit/fc4b5715753723d12503a93aed21697db5277e6b))
+* correct stage method call in stager ([d8d16b7](https://github.com/dsswift/commit/commit/d8d16b7c1a1814898dd43cd84d1e65a82d284045))
+* lower coverage threshold to 50% ([3e41c9e](https://github.com/dsswift/commit/commit/3e41c9e51bd5c068d20a988d899810dc9e0af8d3))
+* resolve lint errors in test files ([314dc63](https://github.com/dsswift/commit/commit/314dc63704cf5f6294d5dd92b4fad562fcf2294a))
+* set up fake HOME config in E2E test for CI ([ff99ad5](https://github.com/dsswift/commit/commit/ff99ad53a8c6d8c8e4fa7b015dfc8e061cf79b3b))
+
 ## [1.12.0](https://github.com/dsswift/commit/compare/v1.11.0...v1.12.0) (2026-02-13)
 
 
