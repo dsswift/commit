@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dsswift/commit/internal/testutil"
 	"github.com/dsswift/commit/pkg/types"
 )
 
@@ -28,7 +29,7 @@ func TestCollector_InvalidateStatusCache(t *testing.T) {
 	}
 
 	// Create an untracked file -- cached status should not reflect it
-	testutil.CreateFile(t,repoDir, "new.txt", "hello")
+	testutil.CreateFile(t, repoDir, "new.txt", "hello")
 	status2, err := collector.Status()
 	if err != nil {
 		t.Fatalf("Status failed: %v", err)
@@ -53,13 +54,13 @@ func TestCollector_DiffStat(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
 	// Create initial commit
-	testutil.CreateFile(t,repoDir, "file.txt", "line1\nline2\n")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "initial")
+	testutil.CreateFile(t, repoDir, "file.txt", "line1\nline2\n")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "initial")
 
 	// Modify file and stage it
-	testutil.CreateFile(t,repoDir, "file.txt", "line1\nline2\nline3\nline4\n")
-	testutil.GitAdd(t,repoDir, "file.txt")
+	testutil.CreateFile(t, repoDir, "file.txt", "line1\nline2\nline3\nline4\n")
+	testutil.GitAdd(t, repoDir, "file.txt")
 
 	collector := NewCollector(repoDir)
 
@@ -80,12 +81,12 @@ func TestCollector_DiffStat(t *testing.T) {
 func TestCollector_DiffStat_Unstaged(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
-	testutil.CreateFile(t,repoDir, "file.txt", "line1\n")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "initial")
+	testutil.CreateFile(t, repoDir, "file.txt", "line1\n")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "initial")
 
 	// Modify without staging
-	testutil.CreateFile(t,repoDir, "file.txt", "line1\nline2\n")
+	testutil.CreateFile(t, repoDir, "file.txt", "line1\nline2\n")
 
 	collector := NewCollector(repoDir)
 	stats, err := collector.DiffStat(false)
@@ -101,9 +102,9 @@ func TestCollector_DiffStat_Unstaged(t *testing.T) {
 func TestCollector_DiffStat_NoChanges(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
-	testutil.CreateFile(t,repoDir, "file.txt", "content")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "initial")
+	testutil.CreateFile(t, repoDir, "file.txt", "content")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "initial")
 
 	collector := NewCollector(repoDir)
 	stats, err := collector.DiffStat(true)
@@ -119,13 +120,13 @@ func TestCollector_DiffStat_NoChanges(t *testing.T) {
 func TestCollector_DiffNumstat(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
-	testutil.CreateFile(t,repoDir, "file.txt", "line1\nline2\nline3\n")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "initial")
+	testutil.CreateFile(t, repoDir, "file.txt", "line1\nline2\nline3\n")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "initial")
 
 	// Modify and stage
-	testutil.CreateFile(t,repoDir, "file.txt", "line1\nline2\nline3\nline4\nline5\n")
-	testutil.GitAdd(t,repoDir, "file.txt")
+	testutil.CreateFile(t, repoDir, "file.txt", "line1\nline2\nline3\nline4\nline5\n")
+	testutil.GitAdd(t, repoDir, "file.txt")
 
 	collector := NewCollector(repoDir)
 	numstats, err := collector.DiffNumstat(true)
@@ -151,11 +152,11 @@ func TestCollector_DiffNumstat(t *testing.T) {
 func TestCollector_DiffNumstat_Unstaged(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
-	testutil.CreateFile(t,repoDir, "file.txt", "line1\n")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "initial")
+	testutil.CreateFile(t, repoDir, "file.txt", "line1\n")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "initial")
 
-	testutil.CreateFile(t,repoDir, "file.txt", "line1\nline2\nline3\n")
+	testutil.CreateFile(t, repoDir, "file.txt", "line1\nline2\nline3\n")
 
 	collector := NewCollector(repoDir)
 	numstats, err := collector.DiffNumstat(false)
@@ -171,9 +172,9 @@ func TestCollector_DiffNumstat_Unstaged(t *testing.T) {
 func TestCollector_DiffNumstat_NoChanges(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
-	testutil.CreateFile(t,repoDir, "file.txt", "content")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "initial")
+	testutil.CreateFile(t, repoDir, "file.txt", "content")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "initial")
 
 	collector := NewCollector(repoDir)
 	numstats, err := collector.DiffNumstat(true)
@@ -189,9 +190,9 @@ func TestCollector_DiffNumstat_NoChanges(t *testing.T) {
 func TestCollector_HeadCommit(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
-	testutil.CreateFile(t,repoDir, "file.txt", "content")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "initial commit")
+	testutil.CreateFile(t, repoDir, "file.txt", "content")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "initial commit")
 
 	collector := NewCollector(repoDir)
 	hash, err := collector.HeadCommit()
@@ -234,9 +235,9 @@ func TestCollector_HeadCommit_NoCommits(t *testing.T) {
 func TestCollector_IsCommitPushed_NoPush(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
-	testutil.CreateFile(t,repoDir, "file.txt", "content")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "initial commit")
+	testutil.CreateFile(t, repoDir, "file.txt", "content")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "initial commit")
 
 	collector := NewCollector(repoDir)
 	pushed, err := collector.IsCommitPushed()
@@ -252,9 +253,9 @@ func TestCollector_IsCommitPushed_NoPush(t *testing.T) {
 func TestCollector_IsRefPushed_NoPush(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
-	testutil.CreateFile(t,repoDir, "file.txt", "content")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "initial commit")
+	testutil.CreateFile(t, repoDir, "file.txt", "content")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "initial commit")
 
 	collector := NewCollector(repoDir)
 	pushed, err := collector.IsRefPushed("HEAD")
@@ -308,15 +309,15 @@ func TestCollector_AbsolutePath(t *testing.T) {
 func TestCollector_GetFileStats(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
-	testutil.CreateFile(t,repoDir, "a.txt", "line1\nline2\nline3\n")
-	testutil.CreateFile(t,repoDir, "b.txt", "hello\n")
-	testutil.GitAdd(t,repoDir, "a.txt", "b.txt")
-	gitCommit(t, repoDir, "initial")
+	testutil.CreateFile(t, repoDir, "a.txt", "line1\nline2\nline3\n")
+	testutil.CreateFile(t, repoDir, "b.txt", "hello\n")
+	testutil.GitAdd(t, repoDir, "a.txt", "b.txt")
+	testutil.GitCommit(t, repoDir, "initial")
 
 	// Modify both files and stage
-	testutil.CreateFile(t,repoDir, "a.txt", "line1\nline2\nline3\nline4\n")
-	testutil.CreateFile(t,repoDir, "b.txt", "hello\nworld\ngoodbye\n")
-	testutil.GitAdd(t,repoDir, "a.txt", "b.txt")
+	testutil.CreateFile(t, repoDir, "a.txt", "line1\nline2\nline3\nline4\n")
+	testutil.CreateFile(t, repoDir, "b.txt", "hello\nworld\ngoodbye\n")
+	testutil.GitAdd(t, repoDir, "a.txt", "b.txt")
 
 	collector := NewCollector(repoDir)
 	stats, err := collector.GetFileStats(true)
@@ -355,11 +356,11 @@ func TestCollector_GetFileStats(t *testing.T) {
 func TestCollector_GetFileStats_Unstaged(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
-	testutil.CreateFile(t,repoDir, "file.txt", "original\n")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "initial")
+	testutil.CreateFile(t, repoDir, "file.txt", "original\n")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "initial")
 
-	testutil.CreateFile(t,repoDir, "file.txt", "original\nnew line\n")
+	testutil.CreateFile(t, repoDir, "file.txt", "original\nnew line\n")
 
 	collector := NewCollector(repoDir)
 	stats, err := collector.GetFileStats(false)
@@ -381,9 +382,9 @@ func TestCollector_GetFileStats_Unstaged(t *testing.T) {
 func TestCollector_GetFileStats_NoChanges(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
-	testutil.CreateFile(t,repoDir, "file.txt", "content")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "initial")
+	testutil.CreateFile(t, repoDir, "file.txt", "content")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "initial")
 
 	collector := NewCollector(repoDir)
 	stats, err := collector.GetFileStats(true)
@@ -401,9 +402,9 @@ func TestCollector_GetCommitLog(t *testing.T) {
 
 	// Create commits
 	for i := 1; i <= 3; i++ {
-		testutil.CreateFile(t,repoDir, "file.txt", strings.Repeat("x", i))
-		testutil.GitAdd(t,repoDir, "file.txt")
-		gitCommit(t, repoDir, "commit "+string(rune('0'+i)))
+		testutil.CreateFile(t, repoDir, "file.txt", strings.Repeat("x", i))
+		testutil.GitAdd(t, repoDir, "file.txt")
+		testutil.GitCommit(t, repoDir, "commit "+string(rune('0'+i)))
 	}
 
 	collector := NewCollector(repoDir)
@@ -468,9 +469,9 @@ func TestCollector_GetCommitsInRange(t *testing.T) {
 	// Create 5 commits
 	var hashes []string
 	for i := 1; i <= 5; i++ {
-		testutil.CreateFile(t,repoDir, "file.txt", strings.Repeat("x", i))
-		testutil.GitAdd(t,repoDir, "file.txt")
-		gitCommit(t, repoDir, "commit "+string(rune('0'+i)))
+		testutil.CreateFile(t, repoDir, "file.txt", strings.Repeat("x", i))
+		testutil.GitAdd(t, repoDir, "file.txt")
+		testutil.GitCommit(t, repoDir, "commit "+string(rune('0'+i)))
 
 		cmd := exec.Command("git", "rev-parse", "HEAD")
 		cmd.Dir = repoDir
@@ -503,22 +504,22 @@ func TestCollector_GetCommitsInRange(t *testing.T) {
 func TestCollector_GetCommitsInRange_Full(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
-	testutil.CreateFile(t,repoDir, "file.txt", "v1")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "first")
+	testutil.CreateFile(t, repoDir, "file.txt", "v1")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "first")
 
 	cmd := exec.Command("git", "rev-parse", "HEAD")
 	cmd.Dir = repoDir
 	out, _ := cmd.Output()
 	firstHash := strings.TrimSpace(string(out))
 
-	testutil.CreateFile(t,repoDir, "file.txt", "v2")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "second")
+	testutil.CreateFile(t, repoDir, "file.txt", "v2")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "second")
 
-	testutil.CreateFile(t,repoDir, "file.txt", "v3")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "third")
+	testutil.CreateFile(t, repoDir, "file.txt", "v3")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "third")
 
 	collector := NewCollector(repoDir)
 	commits, err := collector.GetCommitsInRange(firstHash, "HEAD")
@@ -622,18 +623,18 @@ func TestCollector_batchResolvePushedStatus(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
 	// Create commits
-	testutil.CreateFile(t,repoDir, "file.txt", "v1")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "first")
+	testutil.CreateFile(t, repoDir, "file.txt", "v1")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "first")
 
 	cmd := exec.Command("git", "rev-parse", "HEAD")
 	cmd.Dir = repoDir
 	out, _ := cmd.Output()
 	hash1 := strings.TrimSpace(string(out))
 
-	testutil.CreateFile(t,repoDir, "file.txt", "v2")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "second")
+	testutil.CreateFile(t, repoDir, "file.txt", "v2")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "second")
 
 	cmd = exec.Command("git", "rev-parse", "HEAD")
 	cmd.Dir = repoDir
@@ -673,9 +674,9 @@ func TestCollector_batchResolvePushedStatus_Empty(t *testing.T) {
 func TestCollector_getLocalOnlyCommits(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
-	testutil.CreateFile(t,repoDir, "file.txt", "v1")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "first")
+	testutil.CreateFile(t, repoDir, "file.txt", "v1")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "first")
 
 	collector := NewCollector(repoDir)
 
@@ -899,9 +900,9 @@ func TestCollector_countCommits(t *testing.T) {
 
 	// After creating commits
 	for i := 1; i <= 3; i++ {
-		testutil.CreateFile(t,repoDir, "file.txt", strings.Repeat("v", i))
-		testutil.GitAdd(t,repoDir, "file.txt")
-		gitCommit(t, repoDir, "commit")
+		testutil.CreateFile(t, repoDir, "file.txt", strings.Repeat("v", i))
+		testutil.GitAdd(t, repoDir, "file.txt")
+		testutil.GitCommit(t, repoDir, "commit")
 	}
 
 	if n := collector.countCommits(); n != 3 {
@@ -936,9 +937,9 @@ func TestCollector_GetCommitLog_WithRemote(t *testing.T) {
 	}
 
 	// Create and push a commit
-	testutil.CreateFile(t,repoDir, "file.txt", "v1")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "pushed commit")
+	testutil.CreateFile(t, repoDir, "file.txt", "v1")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "pushed commit")
 
 	cmd = exec.Command("git", "push", "-u", "origin", "HEAD")
 	cmd.Dir = repoDir
@@ -947,9 +948,9 @@ func TestCollector_GetCommitLog_WithRemote(t *testing.T) {
 	}
 
 	// Create a local-only commit
-	testutil.CreateFile(t,repoDir, "file.txt", "v2")
-	testutil.GitAdd(t,repoDir, "file.txt")
-	gitCommit(t, repoDir, "local only commit")
+	testutil.CreateFile(t, repoDir, "file.txt", "v2")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "local only commit")
 
 	collector := NewCollector(repoDir)
 	commits, err := collector.GetCommitLog(2)

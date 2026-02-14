@@ -2,7 +2,10 @@ package interactive
 
 import (
 	"os"
+	"strings"
 	"testing"
+
+	"github.com/dsswift/commit/internal/testutil"
 )
 
 func TestSelectModel_SelectCommit_IncludesSelectedCommit(t *testing.T) {
@@ -58,17 +61,16 @@ func TestSelectModel_SelectCommit_IncludesAllNewerCommits(t *testing.T) {
 
 func TestSelectModel_GetParentHash(t *testing.T) {
 	// This test requires a real git repo
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create two commits
-	createFile(t, repoDir, "file.txt", "content1")
-	gitAdd(t, repoDir, "file.txt")
-	parentHash := gitCommit(t, repoDir, "parent commit")
+	testutil.CreateFile(t, repoDir, "file.txt", "content1")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	parentShortHash := testutil.GitCommit(t, repoDir, "parent commit")
 
-	createFile(t, repoDir, "file.txt", "content2")
-	gitAdd(t, repoDir, "file.txt")
-	childHash := gitCommit(t, repoDir, "child commit")
+	testutil.CreateFile(t, repoDir, "file.txt", "content2")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	childShortHash := testutil.GitCommit(t, repoDir, "child commit")
 
 	m := &SelectModel{}
 	// Change to repo dir for git command
@@ -76,20 +78,20 @@ func TestSelectModel_GetParentHash(t *testing.T) {
 	_ = os.Chdir(repoDir)
 	defer func() { _ = os.Chdir(oldDir) }()
 
-	got := m.getParentHash(childHash)
-	if got != parentHash {
-		t.Errorf("getParentHash(%s) = %s, want %s", childHash, got, parentHash)
+	got := m.getParentHash(childShortHash)
+	// getParentHash returns a full hash; verify it matches the parent's short hash
+	if !strings.HasPrefix(got, parentShortHash) {
+		t.Errorf("getParentHash(%s) = %s, want prefix %s", childShortHash, got, parentShortHash)
 	}
 }
 
 func TestSelectModel_GetParentHash_RootCommit(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create only one commit (root)
-	createFile(t, repoDir, "file.txt", "content")
-	gitAdd(t, repoDir, "file.txt")
-	rootHash := gitCommit(t, repoDir, "root commit")
+	testutil.CreateFile(t, repoDir, "file.txt", "content")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	rootHash := testutil.GitCommit(t, repoDir, "root commit")
 
 	m := &SelectModel{}
 	oldDir, _ := os.Getwd()
