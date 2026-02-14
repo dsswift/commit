@@ -88,7 +88,7 @@ func TestE2E_SmartCommit(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer mockServer.Close()
 
@@ -110,13 +110,13 @@ func TestE2E_SmartCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)
-	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Change to temp dir
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	os.Chdir(tmpDir)        //nolint:errcheck // test setup
+	defer os.Chdir(origDir) //nolint:errcheck // test cleanup
 
 	// Run execute
 	result := execute(flags{}, nil)
@@ -191,8 +191,8 @@ func TestE2E_NoChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)
-	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Override provider factory (should not be called, but save/restore anyway)
 	origFactory := newProviderFunc
@@ -200,8 +200,8 @@ func TestE2E_NoChanges(t *testing.T) {
 
 	// Change to temp dir
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	os.Chdir(tmpDir)        //nolint:errcheck // test setup
+	defer os.Chdir(origDir) //nolint:errcheck // test cleanup
 
 	// Run execute on clean repo
 	result := execute(flags{}, nil)
@@ -282,7 +282,7 @@ func TestE2E_StagedOnly(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer mockServer.Close()
 
@@ -304,13 +304,13 @@ func TestE2E_StagedOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)
-	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Change to temp dir
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	os.Chdir(tmpDir)        //nolint:errcheck // test setup
+	defer os.Chdir(origDir) //nolint:errcheck // test cleanup
 
 	// Run execute with --staged
 	result := execute(flags{staged: true}, nil)
@@ -417,7 +417,7 @@ func TestE2E_DryRun(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer mockServer.Close()
 
@@ -439,13 +439,13 @@ func TestE2E_DryRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)
-	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Change to temp dir
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	os.Chdir(tmpDir)        //nolint:errcheck // test setup
+	defer os.Chdir(origDir) //nolint:errcheck // test cleanup
 
 	// Run execute with --dry-run
 	result := execute(flags{dryRun: true}, nil)
@@ -550,7 +550,7 @@ func TestE2E_SingleCommitMode(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer mockServer.Close()
 
@@ -572,13 +572,13 @@ func TestE2E_SingleCommitMode(t *testing.T) {
 		t.Fatal(err)
 	}
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)
-	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Change to temp dir
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	os.Chdir(tmpDir)        //nolint:errcheck // test setup
+	defer os.Chdir(origDir) //nolint:errcheck // test cleanup
 
 	// Run execute with --single
 	result := execute(flags{single: true}, nil)
@@ -659,8 +659,8 @@ func TestE2E_ConfigError(t *testing.T) {
 	// Set HOME to a temp dir WITHOUT .commit-tool/.env
 	fakeHome := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)
-	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Override provider factory (save/restore but should not be called)
 	origFactory := newProviderFunc
@@ -668,8 +668,8 @@ func TestE2E_ConfigError(t *testing.T) {
 
 	// Change to temp dir
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	os.Chdir(tmpDir)        //nolint:errcheck // test setup
+	defer os.Chdir(origDir) //nolint:errcheck // test cleanup
 
 	// Run execute -- should fail with config error
 	result := execute(flags{}, nil)
@@ -695,8 +695,8 @@ func TestE2E_HandleSetConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)
-	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Test valid set
 	code := handleSetConfig("defaultMode=single")
@@ -813,8 +813,8 @@ func TestE2E_HandleConfigError_AllBranches(t *testing.T) {
 	// Set up fake HOME so EnsureConfigDir/CreateDefaultConfig don't touch real HOME
 	fakeHome := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)
-	defer os.Setenv("HOME", origHome)
+	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Test all error type branches in handleConfigError
 	// We just need to verify these don't panic — they print to stdout
@@ -855,7 +855,7 @@ func (p *mockProvider) Analyze(ctx context.Context, req *types.AnalysisRequest) 
 	if err != nil {
 		return nil, err
 	}
-	defer httpResp.Body.Close()
+	defer httpResp.Body.Close() //nolint:errcheck // test mock
 
 	var resp chatCompletionResponse
 	if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {

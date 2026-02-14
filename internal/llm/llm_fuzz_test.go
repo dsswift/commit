@@ -15,7 +15,7 @@ func FuzzCleanContent(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, input string) {
 		// Should never panic
-		cleanContent(input)
+		_ = cleanContent(input)
 	})
 }
 
