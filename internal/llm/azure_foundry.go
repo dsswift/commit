@@ -214,9 +214,9 @@ func parseCommitPlan(content string) (*types.CommitPlan, error) {
 // Anthropic API types (specific to Azure Foundry's Anthropic proxy)
 
 type anthropicAPIRequest struct {
-	Model     string               `json:"model"`
-	MaxTokens int                  `json:"max_tokens"`
-	System    string               `json:"system,omitempty"`
+	Model     string                `json:"model"`
+	MaxTokens int                   `json:"max_tokens"`
+	System    string                `json:"system,omitempty"`
 	Messages  []anthropicAPIMessage `json:"messages"`
 }
 

@@ -248,10 +248,10 @@ func TestDownloadChecksums_Parse(t *testing.T) {
 	}
 
 	expectedEntries := map[string]string{
-		"commit-darwin-arm64":       "abc123def456abc123def456abc123def456abc123def456abc123def456abcd1234",
-		"commit-linux-amd64":        "fed321cba654fed321cba654fed321cba654fed321cba654fed321cba654fedc4321",
-		"commit-windows-amd64.exe":  "1111111111111111111111111111111111111111111111111111111111111111",
-		"commit-darwin-amd64":       "2222222222222222222222222222222222222222222222222222222222222222",
+		"commit-darwin-arm64":      "abc123def456abc123def456abc123def456abc123def456abc123def456abcd1234",
+		"commit-linux-amd64":       "fed321cba654fed321cba654fed321cba654fed321cba654fed321cba654fedc4321",
+		"commit-windows-amd64.exe": "1111111111111111111111111111111111111111111111111111111111111111",
+		"commit-darwin-amd64":      "2222222222222222222222222222222222222222222222222222222222222222",
 	}
 
 	for filename, expectedHash := range expectedEntries {

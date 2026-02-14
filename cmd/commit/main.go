@@ -183,7 +183,7 @@ func (r *reverseFlag) Set(s string) error {
 	return nil
 }
 
-func (r *reverseFlag) String() string { return strconv.Itoa(int(*r)) }
+func (r *reverseFlag) String() string   { return strconv.Itoa(int(*r)) }
 func (r *reverseFlag) IsBoolFlag() bool { return true }
 
 type flags struct {

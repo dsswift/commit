@@ -13,9 +13,9 @@ import (
 
 // Validator validates commit plans from the LLM.
 type Validator struct {
-	workDir     string
-	repoConfig  *types.RepoConfig
-	knownFiles  map[string]bool
+	workDir    string
+	repoConfig *types.RepoConfig
+	knownFiles map[string]bool
 }
 
 // NewValidator creates a new validator.

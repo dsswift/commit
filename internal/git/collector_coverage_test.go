@@ -848,10 +848,10 @@ func TestParseDiffStat(t *testing.T) {
 // TestParseNumstat verifies parsing of git diff --numstat output.
 func TestParseNumstat(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		wantLen  int
-		checkFn  func(map[string]types.FileChange)
+		name    string
+		input   string
+		wantLen int
+		checkFn func(map[string]types.FileChange)
 	}{
 		{
 			name:    "empty output",
@@ -1003,4 +1003,3 @@ func TestCollector_GetCommitLog_WithRemote(t *testing.T) {
 		}
 	}
 }
-

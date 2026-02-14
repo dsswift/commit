@@ -14,10 +14,10 @@ type WizardModel struct {
 	force   bool
 
 	// State
-	step       WizardStep
-	cancelled  bool
-	completed  bool
-	err        error
+	step      WizardStep
+	cancelled bool
+	completed bool
+	err       error
 
 	// Sub-models
 	selectModel  *SelectModel
@@ -25,7 +25,7 @@ type WizardModel struct {
 	confirmModel *ConfirmModel
 
 	// Collected data
-	baseCommit string   // The commit to rebase onto
+	baseCommit string // The commit to rebase onto
 	entries    []RebaseEntry
 
 	// Styling

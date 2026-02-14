@@ -381,7 +381,7 @@ func TestFilterSensitiveFiles_RemovesEmptyCommits(t *testing.T) {
 
 func TestFilterSensitiveFiles_Patterns(t *testing.T) {
 	tests := []struct {
-		filename string
+		filename    string
 		isSensitive bool
 	}{
 		{"appsettings.json", true},
@@ -500,4 +500,3 @@ type testError struct {
 func (e *testError) Error() string {
 	return e.msg
 }
-

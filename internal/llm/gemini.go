@@ -164,7 +164,7 @@ func (p *GeminiProvider) apiURL() string {
 
 func (p *GeminiProvider) headers() map[string]string {
 	return map[string]string{
-		"Content-Type":  "application/json",
+		"Content-Type":   "application/json",
 		"x-goog-api-key": p.apiKey,
 	}
 }

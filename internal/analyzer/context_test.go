@@ -322,4 +322,3 @@ func TestSummary(t *testing.T) {
 		t.Errorf("expected summary to mention '2 scopes', got: %s", summary)
 	}
 }
-

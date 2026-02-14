@@ -5,11 +5,11 @@ import "github.com/charmbracelet/lipgloss"
 // Styles defines the visual styling for the interactive wizard.
 type Styles struct {
 	// Step indicator styles
-	StepIndicator    lipgloss.Style
-	StepActive       lipgloss.Style
-	StepCompleted    lipgloss.Style
-	StepPending      lipgloss.Style
-	StepArrow        lipgloss.Style
+	StepIndicator lipgloss.Style
+	StepActive    lipgloss.Style
+	StepCompleted lipgloss.Style
+	StepPending   lipgloss.Style
+	StepArrow     lipgloss.Style
 
 	// List styles
 	ListItem         lipgloss.Style

@@ -110,7 +110,7 @@ func TestE2E_SmartCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	os.Setenv("HOME", fakeHome)       //nolint:errcheck // test setup
 	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Change to temp dir
@@ -191,7 +191,7 @@ func TestE2E_NoChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	os.Setenv("HOME", fakeHome)       //nolint:errcheck // test setup
 	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Override provider factory (should not be called, but save/restore anyway)
@@ -304,7 +304,7 @@ func TestE2E_StagedOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	os.Setenv("HOME", fakeHome)       //nolint:errcheck // test setup
 	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Change to temp dir
@@ -439,7 +439,7 @@ func TestE2E_DryRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	os.Setenv("HOME", fakeHome)       //nolint:errcheck // test setup
 	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Change to temp dir
@@ -572,7 +572,7 @@ func TestE2E_SingleCommitMode(t *testing.T) {
 		t.Fatal(err)
 	}
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	os.Setenv("HOME", fakeHome)       //nolint:errcheck // test setup
 	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Change to temp dir
@@ -659,7 +659,7 @@ func TestE2E_ConfigError(t *testing.T) {
 	// Set HOME to a temp dir WITHOUT .commit-tool/.env
 	fakeHome := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	os.Setenv("HOME", fakeHome)       //nolint:errcheck // test setup
 	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Override provider factory (save/restore but should not be called)
@@ -695,7 +695,7 @@ func TestE2E_HandleSetConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	os.Setenv("HOME", fakeHome)       //nolint:errcheck // test setup
 	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Test valid set
@@ -813,7 +813,7 @@ func TestE2E_HandleConfigError_AllBranches(t *testing.T) {
 	// Set up fake HOME so EnsureConfigDir/CreateDefaultConfig don't touch real HOME
 	fakeHome := t.TempDir()
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)           //nolint:errcheck // test setup
+	os.Setenv("HOME", fakeHome)       //nolint:errcheck // test setup
 	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Test all error type branches in handleConfigError

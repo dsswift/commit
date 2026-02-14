@@ -588,7 +588,6 @@ func TestPushedCommitError(t *testing.T) {
 	})
 }
 
-
 // createGitignore creates a .gitignore file in the test repo
 func createGitignore(t *testing.T, repoDir string, patterns ...string) {
 	t.Helper()

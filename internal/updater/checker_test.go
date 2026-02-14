@@ -224,4 +224,3 @@ func TestCheckVersionFresh_BypassesCache(t *testing.T) {
 		t.Errorf("expected current version v1.0.0, got %q", info.CurrentVersion)
 	}
 }
-
