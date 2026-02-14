@@ -31,8 +31,8 @@ jobs:
             COVERAGE=$(echo "$COVERAGE_LINE" | sed 's/.*\s\([0-9]*\.[0-9]*\)%.*/\1/')
           fi
           echo "Coverage: ${COVERAGE}%"
-          if [ "$(echo "$COVERAGE < 60.0" | bc -l)" -eq 1 ]; then
-            echo "::error::Coverage ${COVERAGE}% is below the 60% threshold"
+          if [ "$(echo "$COVERAGE < 70.0" | bc -l)" -eq 1 ]; then
+            echo "::error::Coverage ${COVERAGE}% is below the 70% threshold"
             exit 1
           fi
 
