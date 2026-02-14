@@ -22,6 +22,51 @@ function Get-LatestVersion {
     return $release.tag_name
 }
 
+function Verify-Checksum {
+    param(
+        [string]$Version,
+        [string]$Filename,
+        [string]$TargetPath
+    )
+
+    $checksumUrl = "https://github.com/$Repo/releases/download/$Version/checksums.txt"
+
+    try {
+        $checksumContent = (Invoke-WebRequest -Uri $checksumUrl -UseBasicParsing).Content
+    }
+    catch {
+        Write-ColorOutput Yellow "Warning: checksums.txt not available for $Version, skipping verification"
+        return
+    }
+
+    # Parse checksums.txt: "<hash>  <filename>" format
+    $expectedHash = $null
+    foreach ($line in $checksumContent -split "`n") {
+        $line = $line.Trim()
+        if ($line -eq "") { continue }
+        $parts = $line -split '\s+'
+        if ($parts.Length -eq 2 -and $parts[1] -eq $Filename) {
+            $expectedHash = $parts[0]
+            break
+        }
+    }
+
+    if (-not $expectedHash) {
+        Write-ColorOutput Yellow "Warning: no checksum entry for $Filename, skipping verification"
+        return
+    }
+
+    $actualHash = (Get-FileHash -Path $TargetPath -Algorithm SHA256).Hash
+
+    if ($actualHash -ine $expectedHash) {
+        Remove-Item -Path $TargetPath -Force -ErrorAction SilentlyContinue
+        Write-ColorOutput Red "Checksum mismatch: expected $expectedHash, got $actualHash"
+        exit 1
+    }
+
+    Write-ColorOutput Green "Checksum verified"
+}
+
 function Install-CommitTool {
     Write-Output "🚀 Installing Commit Tool..."
     Write-Output ""
@@ -53,6 +98,9 @@ function Install-CommitTool {
         Write-ColorOutput Red "Download failed: $_"
         exit 1
     }
+
+    # Verify checksum
+    Verify-Checksum -Version $version -Filename $filename -TargetPath $targetPath
 
     Write-ColorOutput Green "Installed to: $targetPath"
 
