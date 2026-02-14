@@ -96,6 +96,20 @@ func TestE2E_SmartCommit(t *testing.T) {
 	}
 	defer func() { newProviderFunc = origFactory }()
 
+	// Set up fake config so LoadUserConfig() succeeds
+	fakeHome := t.TempDir()
+	configDir := filepath.Join(fakeHome, ".commit-tool")
+	if err := os.MkdirAll(filepath.Join(configDir, "logs", "executions"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	envContent := "COMMIT_PROVIDER=openai\nOPENAI_API_KEY=test-key\n"
+	if err := os.WriteFile(filepath.Join(configDir, ".env"), []byte(envContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", fakeHome)
+	defer os.Setenv("HOME", origHome)
+
 	// Change to temp dir
 	origDir, _ := os.Getwd()
 	os.Chdir(tmpDir)
