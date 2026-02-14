@@ -6,83 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/dsswift/commit/internal/testutil"
 )
-
-// testRepo creates a temporary git repository for testing.
-func testRepo(t *testing.T) (string, func()) {
-	t.Helper()
-
-	tmpDir, err := os.MkdirTemp("", "interactive-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-
-	cleanup := func() {
-		_ = os.RemoveAll(tmpDir)
-	}
-
-	// Initialize git repo
-	cmd := exec.Command("git", "init")
-	cmd.Dir = tmpDir
-	if err := cmd.Run(); err != nil {
-		cleanup()
-		t.Fatalf("failed to init git repo: %v", err)
-	}
-
-	// Configure git user
-	cmd = exec.Command("git", "config", "user.email", "test@test.com")
-	cmd.Dir = tmpDir
-	_ = cmd.Run()
-
-	cmd = exec.Command("git", "config", "user.name", "Test User")
-	cmd.Dir = tmpDir
-	_ = cmd.Run()
-
-	return tmpDir, cleanup
-}
-
-// createFile creates a file in the test repo
-func createFile(t *testing.T, repoDir, filename, content string) {
-	t.Helper()
-	path := filepath.Join(repoDir, filename)
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		t.Fatalf("failed to create directory: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatalf("failed to create file: %v", err)
-	}
-}
-
-// gitAdd stages a file
-func gitAdd(t *testing.T, repoDir string, files ...string) {
-	t.Helper()
-	args := append([]string{"add"}, files...)
-	cmd := exec.Command("git", args...)
-	cmd.Dir = repoDir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git add failed: %s: %v", string(out), err)
-	}
-}
-
-// gitCommit creates a commit
-func gitCommit(t *testing.T, repoDir, message string) string {
-	t.Helper()
-	cmd := exec.Command("git", "commit", "-m", message)
-	cmd.Dir = repoDir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git commit failed: %s: %v", string(out), err)
-	}
-
-	// Get the commit hash
-	cmd = exec.Command("git", "rev-parse", "HEAD")
-	cmd.Dir = repoDir
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("failed to get commit hash: %v", err)
-	}
-	return strings.TrimSpace(string(out))
-}
 
 // getCommitMessages returns all commit messages in order (oldest first)
 func getCommitMessages(t *testing.T, repoDir string) []string {
@@ -102,26 +28,25 @@ func getCommitMessages(t *testing.T, repoDir string) []string {
 }
 
 func TestRebaser_Execute_PickAll(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create base commit
-	createFile(t, repoDir, "file.txt", "initial")
-	gitAdd(t, repoDir, "file.txt")
-	baseHash := gitCommit(t, repoDir, "initial commit")
+	testutil.CreateFile(t, repoDir, "file.txt", "initial")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	baseHash := testutil.GitCommit(t, repoDir, "initial commit")
 
 	// Create commits to rebase
-	createFile(t, repoDir, "file.txt", "content1")
-	gitAdd(t, repoDir, "file.txt")
-	gitCommit(t, repoDir, "commit 1")
+	testutil.CreateFile(t, repoDir, "file.txt", "content1")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "commit 1")
 
-	createFile(t, repoDir, "file.txt", "content2")
-	gitAdd(t, repoDir, "file.txt")
-	gitCommit(t, repoDir, "commit 2")
+	testutil.CreateFile(t, repoDir, "file.txt", "content2")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "commit 2")
 
-	createFile(t, repoDir, "file.txt", "content3")
-	gitAdd(t, repoDir, "file.txt")
-	gitCommit(t, repoDir, "commit 3")
+	testutil.CreateFile(t, repoDir, "file.txt", "content3")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "commit 3")
 
 	// Create entries with all pick operations
 	entries := []RebaseEntry{
@@ -150,32 +75,31 @@ func TestRebaser_Execute_PickAll(t *testing.T) {
 }
 
 func TestRebaser_Execute_Reorder(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create base commit
-	createFile(t, repoDir, "base.txt", "base")
-	gitAdd(t, repoDir, "base.txt")
-	baseHash := gitCommit(t, repoDir, "base")
+	testutil.CreateFile(t, repoDir, "base.txt", "base")
+	testutil.GitAdd(t, repoDir, "base.txt")
+	baseHash := testutil.GitCommit(t, repoDir, "base")
 
 	// Create commits A, B, C (each modifies a different file to avoid conflicts)
-	createFile(t, repoDir, "a.txt", "A")
-	gitAdd(t, repoDir, "a.txt")
-	hashA := gitCommit(t, repoDir, "A")
+	testutil.CreateFile(t, repoDir, "a.txt", "A")
+	testutil.GitAdd(t, repoDir, "a.txt")
+	hashA := testutil.GitCommit(t, repoDir, "A")
 
-	createFile(t, repoDir, "b.txt", "B")
-	gitAdd(t, repoDir, "b.txt")
-	hashB := gitCommit(t, repoDir, "B")
+	testutil.CreateFile(t, repoDir, "b.txt", "B")
+	testutil.GitAdd(t, repoDir, "b.txt")
+	hashB := testutil.GitCommit(t, repoDir, "B")
 
-	createFile(t, repoDir, "c.txt", "C")
-	gitAdd(t, repoDir, "c.txt")
-	gitCommit(t, repoDir, "C")
+	testutil.CreateFile(t, repoDir, "c.txt", "C")
+	testutil.GitAdd(t, repoDir, "c.txt")
+	testutil.GitCommit(t, repoDir, "C")
 
 	// Reorder to C, A, B
 	entries := []RebaseEntry{
 		{Commit: RebaseCommit{ShortHash: getShortHash(t, repoDir, "HEAD"), Message: "C"}, Operation: OpPick},
-		{Commit: RebaseCommit{ShortHash: hashA[:7], Message: "A"}, Operation: OpPick},
-		{Commit: RebaseCommit{ShortHash: hashB[:7], Message: "B"}, Operation: OpPick},
+		{Commit: RebaseCommit{ShortHash: hashA, Message: "A"}, Operation: OpPick},
+		{Commit: RebaseCommit{ShortHash: hashB, Message: "B"}, Operation: OpPick},
 	}
 
 	rebaser := NewRebaser(repoDir)
@@ -198,26 +122,25 @@ func TestRebaser_Execute_Reorder(t *testing.T) {
 }
 
 func TestRebaser_Execute_Drop(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create base commit
-	createFile(t, repoDir, "base.txt", "base")
-	gitAdd(t, repoDir, "base.txt")
-	baseHash := gitCommit(t, repoDir, "base")
+	testutil.CreateFile(t, repoDir, "base.txt", "base")
+	testutil.GitAdd(t, repoDir, "base.txt")
+	baseHash := testutil.GitCommit(t, repoDir, "base")
 
 	// Create commits
-	createFile(t, repoDir, "keep.txt", "keep")
-	gitAdd(t, repoDir, "keep.txt")
-	gitCommit(t, repoDir, "keep this")
+	testutil.CreateFile(t, repoDir, "keep.txt", "keep")
+	testutil.GitAdd(t, repoDir, "keep.txt")
+	testutil.GitCommit(t, repoDir, "keep this")
 
-	createFile(t, repoDir, "drop.txt", "drop")
-	gitAdd(t, repoDir, "drop.txt")
-	gitCommit(t, repoDir, "drop this")
+	testutil.CreateFile(t, repoDir, "drop.txt", "drop")
+	testutil.GitAdd(t, repoDir, "drop.txt")
+	testutil.GitCommit(t, repoDir, "drop this")
 
-	createFile(t, repoDir, "also_keep.txt", "also keep")
-	gitAdd(t, repoDir, "also_keep.txt")
-	gitCommit(t, repoDir, "also keep")
+	testutil.CreateFile(t, repoDir, "also_keep.txt", "also keep")
+	testutil.GitAdd(t, repoDir, "also_keep.txt")
+	testutil.GitCommit(t, repoDir, "also keep")
 
 	// Drop the middle commit
 	entries := []RebaseEntry{
@@ -246,22 +169,21 @@ func TestRebaser_Execute_Drop(t *testing.T) {
 }
 
 func TestRebaser_Execute_Squash(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create base commit
-	createFile(t, repoDir, "base.txt", "base")
-	gitAdd(t, repoDir, "base.txt")
-	baseHash := gitCommit(t, repoDir, "base")
+	testutil.CreateFile(t, repoDir, "base.txt", "base")
+	testutil.GitAdd(t, repoDir, "base.txt")
+	baseHash := testutil.GitCommit(t, repoDir, "base")
 
 	// Create commits to squash
-	createFile(t, repoDir, "feature.txt", "v1")
-	gitAdd(t, repoDir, "feature.txt")
-	gitCommit(t, repoDir, "feat: add feature")
+	testutil.CreateFile(t, repoDir, "feature.txt", "v1")
+	testutil.GitAdd(t, repoDir, "feature.txt")
+	testutil.GitCommit(t, repoDir, "feat: add feature")
 
-	createFile(t, repoDir, "feature.txt", "v2")
-	gitAdd(t, repoDir, "feature.txt")
-	gitCommit(t, repoDir, "fix: feature bug")
+	testutil.CreateFile(t, repoDir, "feature.txt", "v2")
+	testutil.GitAdd(t, repoDir, "feature.txt")
+	testutil.GitCommit(t, repoDir, "fix: feature bug")
 
 	// Squash second into first with edited message
 	entries := []RebaseEntry{
@@ -300,18 +222,17 @@ func TestRebaser_Execute_Squash(t *testing.T) {
 }
 
 func TestRebaser_Execute_Reword(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create base commit
-	createFile(t, repoDir, "base.txt", "base")
-	gitAdd(t, repoDir, "base.txt")
-	baseHash := gitCommit(t, repoDir, "base")
+	testutil.CreateFile(t, repoDir, "base.txt", "base")
+	testutil.GitAdd(t, repoDir, "base.txt")
+	baseHash := testutil.GitCommit(t, repoDir, "base")
 
 	// Create commit to reword
-	createFile(t, repoDir, "feature.txt", "content")
-	gitAdd(t, repoDir, "feature.txt")
-	gitCommit(t, repoDir, "old message")
+	testutil.CreateFile(t, repoDir, "feature.txt", "content")
+	testutil.GitAdd(t, repoDir, "feature.txt")
+	testutil.GitCommit(t, repoDir, "old message")
 
 	// Reword with new message
 	entries := []RebaseEntry{
@@ -349,8 +270,7 @@ func TestRebaser_Execute_Reword(t *testing.T) {
 }
 
 func TestRebaser_Execute_EmptyEntries(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	rebaser := NewRebaser(repoDir)
 	err := rebaser.Execute([]RebaseEntry{}, "abc123")
@@ -387,18 +307,17 @@ func TestPushedCommitError(t *testing.T) {
 }
 
 func TestRebaser_Execute_RootCommit(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create initial commit
-	createFile(t, repoDir, "file.txt", "initial")
-	gitAdd(t, repoDir, "file.txt")
-	gitCommit(t, repoDir, "initial commit")
+	testutil.CreateFile(t, repoDir, "file.txt", "initial")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "initial commit")
 
 	// Create second commit to reword
-	createFile(t, repoDir, "file.txt", "updated")
-	gitAdd(t, repoDir, "file.txt")
-	gitCommit(t, repoDir, "second commit")
+	testutil.CreateFile(t, repoDir, "file.txt", "updated")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "second commit")
 
 	// Rebase both commits with --root (empty baseCommit)
 	entries := []RebaseEntry{
@@ -421,26 +340,25 @@ func TestRebaser_Execute_RootCommit(t *testing.T) {
 }
 
 func TestRebaser_Execute_MultipleRewords(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create base commit
-	createFile(t, repoDir, "base.txt", "base")
-	gitAdd(t, repoDir, "base.txt")
-	baseHash := gitCommit(t, repoDir, "base")
+	testutil.CreateFile(t, repoDir, "base.txt", "base")
+	testutil.GitAdd(t, repoDir, "base.txt")
+	baseHash := testutil.GitCommit(t, repoDir, "base")
 
 	// Create multiple commits to reword
-	createFile(t, repoDir, "a.txt", "a")
-	gitAdd(t, repoDir, "a.txt")
-	gitCommit(t, repoDir, "old message A")
+	testutil.CreateFile(t, repoDir, "a.txt", "a")
+	testutil.GitAdd(t, repoDir, "a.txt")
+	testutil.GitCommit(t, repoDir, "old message A")
 
-	createFile(t, repoDir, "b.txt", "b")
-	gitAdd(t, repoDir, "b.txt")
-	gitCommit(t, repoDir, "old message B")
+	testutil.CreateFile(t, repoDir, "b.txt", "b")
+	testutil.GitAdd(t, repoDir, "b.txt")
+	testutil.GitCommit(t, repoDir, "old message B")
 
-	createFile(t, repoDir, "c.txt", "c")
-	gitAdd(t, repoDir, "c.txt")
-	gitCommit(t, repoDir, "old message C")
+	testutil.CreateFile(t, repoDir, "c.txt", "c")
+	testutil.GitAdd(t, repoDir, "c.txt")
+	testutil.GitCommit(t, repoDir, "old message C")
 
 	// Reword all commits with new messages
 	entries := []RebaseEntry{
@@ -484,30 +402,29 @@ func TestRebaser_Execute_MultipleRewords(t *testing.T) {
 }
 
 func TestRebaser_Execute_MixedOperationsWithReword(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create base commit
-	createFile(t, repoDir, "base.txt", "base")
-	gitAdd(t, repoDir, "base.txt")
-	baseHash := gitCommit(t, repoDir, "base")
+	testutil.CreateFile(t, repoDir, "base.txt", "base")
+	testutil.GitAdd(t, repoDir, "base.txt")
+	baseHash := testutil.GitCommit(t, repoDir, "base")
 
 	// Create commits with mixed operations
-	createFile(t, repoDir, "a.txt", "a")
-	gitAdd(t, repoDir, "a.txt")
-	gitCommit(t, repoDir, "pick this")
+	testutil.CreateFile(t, repoDir, "a.txt", "a")
+	testutil.GitAdd(t, repoDir, "a.txt")
+	testutil.GitCommit(t, repoDir, "pick this")
 
-	createFile(t, repoDir, "b.txt", "b")
-	gitAdd(t, repoDir, "b.txt")
-	gitCommit(t, repoDir, "reword this")
+	testutil.CreateFile(t, repoDir, "b.txt", "b")
+	testutil.GitAdd(t, repoDir, "b.txt")
+	testutil.GitCommit(t, repoDir, "reword this")
 
-	createFile(t, repoDir, "c.txt", "c")
-	gitAdd(t, repoDir, "c.txt")
-	gitCommit(t, repoDir, "also reword")
+	testutil.CreateFile(t, repoDir, "c.txt", "c")
+	testutil.GitAdd(t, repoDir, "c.txt")
+	testutil.GitCommit(t, repoDir, "also reword")
 
-	createFile(t, repoDir, "d.txt", "d")
-	gitAdd(t, repoDir, "d.txt")
-	gitCommit(t, repoDir, "pick this too")
+	testutil.CreateFile(t, repoDir, "d.txt", "d")
+	testutil.GitAdd(t, repoDir, "d.txt")
+	testutil.GitCommit(t, repoDir, "pick this too")
 
 	// Mix of pick and reword operations
 	entries := []RebaseEntry{

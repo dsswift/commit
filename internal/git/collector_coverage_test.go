@@ -14,8 +14,7 @@ import (
 // TestCollector_InvalidateStatusCache verifies that InvalidateStatusCache clears the
 // cached status, forcing a fresh git query on the next Status() call.
 func TestCollector_InvalidateStatusCache(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	collector := NewCollector(repoDir)
 
@@ -29,7 +28,7 @@ func TestCollector_InvalidateStatusCache(t *testing.T) {
 	}
 
 	// Create an untracked file -- cached status should not reflect it
-	createFile(t, repoDir, "new.txt", "hello")
+	testutil.CreateFile(t,repoDir, "new.txt", "hello")
 	status2, err := collector.Status()
 	if err != nil {
 		t.Fatalf("Status failed: %v", err)
@@ -51,17 +50,16 @@ func TestCollector_InvalidateStatusCache(t *testing.T) {
 
 // TestCollector_DiffStat verifies DiffStat returns per-file stat summaries.
 func TestCollector_DiffStat(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create initial commit
-	createFile(t, repoDir, "file.txt", "line1\nline2\n")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "line1\nline2\n")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "initial")
 
 	// Modify file and stage it
-	createFile(t, repoDir, "file.txt", "line1\nline2\nline3\nline4\n")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "line1\nline2\nline3\nline4\n")
+	testutil.GitAdd(t,repoDir, "file.txt")
 
 	collector := NewCollector(repoDir)
 
@@ -80,15 +78,14 @@ func TestCollector_DiffStat(t *testing.T) {
 
 // TestCollector_DiffStat_Unstaged verifies DiffStat for unstaged changes.
 func TestCollector_DiffStat_Unstaged(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
-	createFile(t, repoDir, "file.txt", "line1\n")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "line1\n")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "initial")
 
 	// Modify without staging
-	createFile(t, repoDir, "file.txt", "line1\nline2\n")
+	testutil.CreateFile(t,repoDir, "file.txt", "line1\nline2\n")
 
 	collector := NewCollector(repoDir)
 	stats, err := collector.DiffStat(false)
@@ -102,11 +99,10 @@ func TestCollector_DiffStat_Unstaged(t *testing.T) {
 
 // TestCollector_DiffStat_NoChanges verifies DiffStat returns empty map with no changes.
 func TestCollector_DiffStat_NoChanges(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
-	createFile(t, repoDir, "file.txt", "content")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "content")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "initial")
 
 	collector := NewCollector(repoDir)
@@ -121,16 +117,15 @@ func TestCollector_DiffStat_NoChanges(t *testing.T) {
 
 // TestCollector_DiffNumstat verifies DiffNumstat returns per-file numeric change stats.
 func TestCollector_DiffNumstat(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
-	createFile(t, repoDir, "file.txt", "line1\nline2\nline3\n")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "line1\nline2\nline3\n")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "initial")
 
 	// Modify and stage
-	createFile(t, repoDir, "file.txt", "line1\nline2\nline3\nline4\nline5\n")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "line1\nline2\nline3\nline4\nline5\n")
+	testutil.GitAdd(t,repoDir, "file.txt")
 
 	collector := NewCollector(repoDir)
 	numstats, err := collector.DiffNumstat(true)
@@ -154,14 +149,13 @@ func TestCollector_DiffNumstat(t *testing.T) {
 
 // TestCollector_DiffNumstat_Unstaged verifies DiffNumstat for unstaged changes.
 func TestCollector_DiffNumstat_Unstaged(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
-	createFile(t, repoDir, "file.txt", "line1\n")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "line1\n")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "initial")
 
-	createFile(t, repoDir, "file.txt", "line1\nline2\nline3\n")
+	testutil.CreateFile(t,repoDir, "file.txt", "line1\nline2\nline3\n")
 
 	collector := NewCollector(repoDir)
 	numstats, err := collector.DiffNumstat(false)
@@ -175,11 +169,10 @@ func TestCollector_DiffNumstat_Unstaged(t *testing.T) {
 
 // TestCollector_DiffNumstat_NoChanges verifies DiffNumstat returns empty map with no changes.
 func TestCollector_DiffNumstat_NoChanges(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
-	createFile(t, repoDir, "file.txt", "content")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "content")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "initial")
 
 	collector := NewCollector(repoDir)
@@ -194,11 +187,10 @@ func TestCollector_DiffNumstat_NoChanges(t *testing.T) {
 
 // TestCollector_HeadCommit verifies HeadCommit returns the current HEAD hash.
 func TestCollector_HeadCommit(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
-	createFile(t, repoDir, "file.txt", "content")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "content")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "initial commit")
 
 	collector := NewCollector(repoDir)
@@ -228,8 +220,7 @@ func TestCollector_HeadCommit(t *testing.T) {
 
 // TestCollector_HeadCommit_NoCommits verifies HeadCommit returns error in empty repo.
 func TestCollector_HeadCommit_NoCommits(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	collector := NewCollector(repoDir)
 	_, err := collector.HeadCommit()
@@ -241,11 +232,10 @@ func TestCollector_HeadCommit_NoCommits(t *testing.T) {
 // TestCollector_IsCommitPushed_NoPush verifies IsCommitPushed returns false when
 // there is no remote.
 func TestCollector_IsCommitPushed_NoPush(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
-	createFile(t, repoDir, "file.txt", "content")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "content")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "initial commit")
 
 	collector := NewCollector(repoDir)
@@ -260,11 +250,10 @@ func TestCollector_IsCommitPushed_NoPush(t *testing.T) {
 
 // TestCollector_IsRefPushed_NoPush verifies IsRefPushed returns false with no remote.
 func TestCollector_IsRefPushed_NoPush(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
-	createFile(t, repoDir, "file.txt", "content")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "content")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "initial commit")
 
 	collector := NewCollector(repoDir)
@@ -279,8 +268,7 @@ func TestCollector_IsRefPushed_NoPush(t *testing.T) {
 
 // TestCollector_AbsolutePath verifies AbsolutePath joins workDir with the relative path.
 func TestCollector_AbsolutePath(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	collector := NewCollector(repoDir)
 
@@ -318,18 +306,17 @@ func TestCollector_AbsolutePath(t *testing.T) {
 
 // TestCollector_GetFileStats verifies GetFileStats returns per-file add/remove counts.
 func TestCollector_GetFileStats(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
-	createFile(t, repoDir, "a.txt", "line1\nline2\nline3\n")
-	createFile(t, repoDir, "b.txt", "hello\n")
-	gitAdd(t, repoDir, "a.txt", "b.txt")
+	testutil.CreateFile(t,repoDir, "a.txt", "line1\nline2\nline3\n")
+	testutil.CreateFile(t,repoDir, "b.txt", "hello\n")
+	testutil.GitAdd(t,repoDir, "a.txt", "b.txt")
 	gitCommit(t, repoDir, "initial")
 
 	// Modify both files and stage
-	createFile(t, repoDir, "a.txt", "line1\nline2\nline3\nline4\n")
-	createFile(t, repoDir, "b.txt", "hello\nworld\ngoodbye\n")
-	gitAdd(t, repoDir, "a.txt", "b.txt")
+	testutil.CreateFile(t,repoDir, "a.txt", "line1\nline2\nline3\nline4\n")
+	testutil.CreateFile(t,repoDir, "b.txt", "hello\nworld\ngoodbye\n")
+	testutil.GitAdd(t,repoDir, "a.txt", "b.txt")
 
 	collector := NewCollector(repoDir)
 	stats, err := collector.GetFileStats(true)
@@ -366,14 +353,13 @@ func TestCollector_GetFileStats(t *testing.T) {
 
 // TestCollector_GetFileStats_Unstaged verifies GetFileStats for unstaged changes.
 func TestCollector_GetFileStats_Unstaged(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
-	createFile(t, repoDir, "file.txt", "original\n")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "original\n")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "initial")
 
-	createFile(t, repoDir, "file.txt", "original\nnew line\n")
+	testutil.CreateFile(t,repoDir, "file.txt", "original\nnew line\n")
 
 	collector := NewCollector(repoDir)
 	stats, err := collector.GetFileStats(false)
@@ -393,11 +379,10 @@ func TestCollector_GetFileStats_Unstaged(t *testing.T) {
 
 // TestCollector_GetFileStats_NoChanges verifies GetFileStats returns empty with no changes.
 func TestCollector_GetFileStats_NoChanges(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
-	createFile(t, repoDir, "file.txt", "content")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "content")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "initial")
 
 	collector := NewCollector(repoDir)
@@ -412,13 +397,12 @@ func TestCollector_GetFileStats_NoChanges(t *testing.T) {
 
 // TestCollector_GetCommitLog verifies GetCommitLog returns detailed commit info.
 func TestCollector_GetCommitLog(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create commits
 	for i := 1; i <= 3; i++ {
-		createFile(t, repoDir, "file.txt", strings.Repeat("x", i))
-		gitAdd(t, repoDir, "file.txt")
+		testutil.CreateFile(t,repoDir, "file.txt", strings.Repeat("x", i))
+		testutil.GitAdd(t,repoDir, "file.txt")
 		gitCommit(t, repoDir, "commit "+string(rune('0'+i)))
 	}
 
@@ -465,8 +449,7 @@ func TestCollector_GetCommitLog(t *testing.T) {
 
 // TestCollector_GetCommitLog_Empty verifies GetCommitLog returns empty for repo with no commits.
 func TestCollector_GetCommitLog_Empty(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	collector := NewCollector(repoDir)
 	commits, err := collector.GetCommitLog(5)
@@ -480,14 +463,13 @@ func TestCollector_GetCommitLog_Empty(t *testing.T) {
 
 // TestCollector_GetCommitsInRange verifies getting commits between two refs.
 func TestCollector_GetCommitsInRange(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create 5 commits
 	var hashes []string
 	for i := 1; i <= 5; i++ {
-		createFile(t, repoDir, "file.txt", strings.Repeat("x", i))
-		gitAdd(t, repoDir, "file.txt")
+		testutil.CreateFile(t,repoDir, "file.txt", strings.Repeat("x", i))
+		testutil.GitAdd(t,repoDir, "file.txt")
 		gitCommit(t, repoDir, "commit "+string(rune('0'+i)))
 
 		cmd := exec.Command("git", "rev-parse", "HEAD")
@@ -519,11 +501,10 @@ func TestCollector_GetCommitsInRange(t *testing.T) {
 
 // TestCollector_GetCommitsInRange_Full verifies getting all commits in range.
 func TestCollector_GetCommitsInRange_Full(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
-	createFile(t, repoDir, "file.txt", "v1")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "v1")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "first")
 
 	cmd := exec.Command("git", "rev-parse", "HEAD")
@@ -531,12 +512,12 @@ func TestCollector_GetCommitsInRange_Full(t *testing.T) {
 	out, _ := cmd.Output()
 	firstHash := strings.TrimSpace(string(out))
 
-	createFile(t, repoDir, "file.txt", "v2")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "v2")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "second")
 
-	createFile(t, repoDir, "file.txt", "v3")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "v3")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "third")
 
 	collector := NewCollector(repoDir)
@@ -638,12 +619,11 @@ func TestCollector_parseCommitLog(t *testing.T) {
 
 // TestCollector_batchResolvePushedStatus verifies pushed status resolution.
 func TestCollector_batchResolvePushedStatus(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Create commits
-	createFile(t, repoDir, "file.txt", "v1")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "v1")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "first")
 
 	cmd := exec.Command("git", "rev-parse", "HEAD")
@@ -651,8 +631,8 @@ func TestCollector_batchResolvePushedStatus(t *testing.T) {
 	out, _ := cmd.Output()
 	hash1 := strings.TrimSpace(string(out))
 
-	createFile(t, repoDir, "file.txt", "v2")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "v2")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "second")
 
 	cmd = exec.Command("git", "rev-parse", "HEAD")
@@ -681,8 +661,7 @@ func TestCollector_batchResolvePushedStatus(t *testing.T) {
 
 // TestCollector_batchResolvePushedStatus_Empty verifies no panic on empty slice.
 func TestCollector_batchResolvePushedStatus_Empty(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	collector := NewCollector(repoDir)
 	commits := []CommitInfo{}
@@ -692,11 +671,10 @@ func TestCollector_batchResolvePushedStatus_Empty(t *testing.T) {
 
 // TestCollector_getLocalOnlyCommits verifies local-only commit detection runs without error.
 func TestCollector_getLocalOnlyCommits(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
-	createFile(t, repoDir, "file.txt", "v1")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "v1")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "first")
 
 	collector := NewCollector(repoDir)
@@ -713,8 +691,7 @@ func TestCollector_getLocalOnlyCommits(t *testing.T) {
 
 // TestCollector_getLocalOnlyCommits_EmptyRepo verifies no crash on empty repo.
 func TestCollector_getLocalOnlyCommits_EmptyRepo(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	collector := NewCollector(repoDir)
 	localOnly := collector.getLocalOnlyCommits()
@@ -727,8 +704,7 @@ func TestCollector_getLocalOnlyCommits_EmptyRepo(t *testing.T) {
 
 // TestCollector_filterIgnoredFiles verifies batch gitignore filtering.
 func TestCollector_filterIgnoredFiles(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	createGitignore(t, repoDir, "*.log", "build/", "*.tmp")
 
@@ -782,8 +758,7 @@ func TestCollector_filterIgnoredFiles(t *testing.T) {
 
 // TestCollector_filterIgnoredFiles_NoGitignore verifies behavior when no repo .gitignore exists.
 func TestCollector_filterIgnoredFiles_NoGitignore(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	collector := NewCollector(repoDir)
 	// Use filenames unlikely to match any global gitignore patterns
@@ -913,8 +888,7 @@ func TestParseNumstat(t *testing.T) {
 
 // TestCollector_countCommits verifies the internal commit counter.
 func TestCollector_countCommits(t *testing.T) {
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	collector := NewCollector(repoDir)
 
@@ -925,8 +899,8 @@ func TestCollector_countCommits(t *testing.T) {
 
 	// After creating commits
 	for i := 1; i <= 3; i++ {
-		createFile(t, repoDir, "file.txt", strings.Repeat("v", i))
-		gitAdd(t, repoDir, "file.txt")
+		testutil.CreateFile(t,repoDir, "file.txt", strings.Repeat("v", i))
+		testutil.GitAdd(t,repoDir, "file.txt")
 		gitCommit(t, repoDir, "commit")
 	}
 
@@ -952,8 +926,7 @@ func TestCollector_GetCommitLog_WithRemote(t *testing.T) {
 	}
 
 	// Create local repo
-	repoDir, cleanup := testRepo(t)
-	defer cleanup()
+	repoDir := testutil.TestRepo(t)
 
 	// Add remote
 	cmd = exec.Command("git", "remote", "add", "origin", remoteDir)
@@ -963,8 +936,8 @@ func TestCollector_GetCommitLog_WithRemote(t *testing.T) {
 	}
 
 	// Create and push a commit
-	createFile(t, repoDir, "file.txt", "v1")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "v1")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "pushed commit")
 
 	cmd = exec.Command("git", "push", "-u", "origin", "HEAD")
@@ -974,8 +947,8 @@ func TestCollector_GetCommitLog_WithRemote(t *testing.T) {
 	}
 
 	// Create a local-only commit
-	createFile(t, repoDir, "file.txt", "v2")
-	gitAdd(t, repoDir, "file.txt")
+	testutil.CreateFile(t,repoDir, "file.txt", "v2")
+	testutil.GitAdd(t,repoDir, "file.txt")
 	gitCommit(t, repoDir, "local only commit")
 
 	collector := NewCollector(repoDir)
