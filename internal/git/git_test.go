@@ -5,9 +5,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/dsswift/commit/internal/testutil"
+	"github.com/dsswift/commit/pkg/types"
 )
 
 func TestFindGitRoot(t *testing.T) {
@@ -917,4 +919,425 @@ func TestCollector_HasCommitDepth(t *testing.T) {
 	if err := collector.HasCommitDepth(4); err == nil {
 		t.Error("HasCommitDepth(4) should fail with only 3 commits")
 	}
+}
+
+func TestCommitter_VerifyCommit(t *testing.T) {
+	repoDir := testutil.TestRepo(t)
+
+	// Create an initial commit so diff-tree has a parent to compare against
+	testutil.CreateFile(t, repoDir, "init.txt", "init")
+	testutil.GitAdd(t, repoDir, "init.txt")
+	testutil.GitCommit(t, repoDir, "initial commit")
+
+	// Create a file, stage it, and commit
+	testutil.CreateFile(t, repoDir, "file.go", "package main")
+	testutil.GitAdd(t, repoDir, "file.go")
+	hash := testutil.GitCommit(t, repoDir, "add file")
+
+	committer := NewCommitter(repoDir)
+
+	// Verify with correct hash and file should succeed
+	err := committer.VerifyCommit(hash, []string{"file.go"})
+	if err != nil {
+		t.Fatalf("VerifyCommit should succeed with correct hash and file: %v", err)
+	}
+
+	// Verify with wrong hash should fail with mismatch
+	err = committer.VerifyCommit("badhash", []string{"file.go"})
+	if err == nil {
+		t.Fatal("VerifyCommit should fail with wrong hash")
+	}
+	if !testutil.ContainsString(err.Error(), "mismatch") {
+		t.Errorf("expected error to mention 'mismatch', got: %s", err.Error())
+	}
+
+	// Verify with wrong file should fail with not in commit
+	err = committer.VerifyCommit(hash, []string{"nonexistent.go"})
+	if err == nil {
+		t.Fatal("VerifyCommit should fail with wrong file")
+	}
+	if !testutil.ContainsString(err.Error(), "not in commit") {
+		t.Errorf("expected error to mention 'not in commit', got: %s", err.Error())
+	}
+}
+
+func TestCommitter_ExecutePlannedCommit(t *testing.T) {
+	repoDir := testutil.TestRepo(t)
+
+	// Create an initial commit so unstage works
+	testutil.CreateFile(t, repoDir, "init.txt", "init")
+	testutil.GitAdd(t, repoDir, "init.txt")
+	testutil.GitCommit(t, repoDir, "initial commit")
+
+	// Create a file for the planned commit
+	testutil.CreateFile(t, repoDir, "main.go", "package main")
+
+	committer := NewCommitter(repoDir)
+	result, err := committer.ExecutePlannedCommit(types.PlannedCommit{
+		Type:    "feat",
+		Message: "add main",
+		Files:   []string{"main.go"},
+	})
+	if err != nil {
+		t.Fatalf("ExecutePlannedCommit failed: %v", err)
+	}
+
+	if result.Hash == "" {
+		t.Error("expected non-empty commit hash")
+	}
+
+	if result.Message != "feat: add main" {
+		t.Errorf("expected message 'feat: add main', got %q", result.Message)
+	}
+
+	foundMainGo := false
+	for _, f := range result.Files {
+		if f == "main.go" {
+			foundMainGo = true
+			break
+		}
+	}
+	if !foundMainGo {
+		t.Errorf("expected result.Files to contain 'main.go', got %v", result.Files)
+	}
+}
+
+func TestCommitter_ExecutePlannedCommit_WithScope(t *testing.T) {
+	repoDir := testutil.TestRepo(t)
+
+	// Create an initial commit so unstage works
+	testutil.CreateFile(t, repoDir, "init.txt", "init")
+	testutil.GitAdd(t, repoDir, "init.txt")
+	testutil.GitCommit(t, repoDir, "initial commit")
+
+	// Create a file for the planned commit
+	testutil.CreateFile(t, repoDir, "endpoint.go", "package api")
+
+	scope := "api"
+	committer := NewCommitter(repoDir)
+	result, err := committer.ExecutePlannedCommit(types.PlannedCommit{
+		Type:    "feat",
+		Scope:   &scope,
+		Message: "add endpoint",
+		Files:   []string{"endpoint.go"},
+	})
+	if err != nil {
+		t.Fatalf("ExecutePlannedCommit with scope failed: %v", err)
+	}
+
+	if result.Message != "feat(api): add endpoint" {
+		t.Errorf("expected message 'feat(api): add endpoint', got %q", result.Message)
+	}
+}
+
+func TestNoStagedFilesError(t *testing.T) {
+	err := &NoStagedFilesError{PlannedFiles: []string{"a.go", "b.go"}}
+	msg := err.Error()
+
+	if !testutil.ContainsString(msg, "2 paths") {
+		t.Errorf("expected error to contain '2 paths', got: %s", msg)
+	}
+
+	if !testutil.ContainsString(msg, "directories") {
+		t.Errorf("expected error to contain 'directories', got: %s", msg)
+	}
+}
+
+func TestStager_UnstageFiles(t *testing.T) {
+	repoDir := testutil.TestRepo(t)
+
+	// Create initial commit so reset HEAD works
+	testutil.CreateFile(t, repoDir, "file.txt", "initial")
+	testutil.GitAdd(t, repoDir, "file.txt")
+	testutil.GitCommit(t, repoDir, "initial commit")
+
+	// Modify and stage the file
+	testutil.CreateFile(t, repoDir, "file.txt", "modified content")
+	testutil.GitAdd(t, repoDir, "file.txt")
+
+	stager := NewStager(repoDir)
+
+	// Verify file is staged
+	staged, err := stager.StagedFiles()
+	if err != nil {
+		t.Fatalf("StagedFiles failed: %v", err)
+	}
+	if len(staged) != 1 || staged[0] != "file.txt" {
+		t.Fatalf("expected file.txt to be staged, got %v", staged)
+	}
+
+	// Unstage the file
+	err = stager.UnstageFiles([]string{"file.txt"})
+	if err != nil {
+		t.Fatalf("UnstageFiles failed: %v", err)
+	}
+
+	// Verify file is no longer staged
+	staged, err = stager.StagedFiles()
+	if err != nil {
+		t.Fatalf("StagedFiles after unstage failed: %v", err)
+	}
+	if len(staged) != 0 {
+		t.Errorf("expected no staged files after unstage, got %v", staged)
+	}
+}
+
+func TestStager_StageAll(t *testing.T) {
+	repoDir := testutil.TestRepo(t)
+
+	// Create initial commit so diff --cached works properly
+	testutil.CreateFile(t, repoDir, "init.txt", "init")
+	testutil.GitAdd(t, repoDir, "init.txt")
+	testutil.GitCommit(t, repoDir, "initial commit")
+
+	// Create 3 new files
+	testutil.CreateFile(t, repoDir, "a.go", "package a")
+	testutil.CreateFile(t, repoDir, "b.go", "package b")
+	testutil.CreateFile(t, repoDir, "c.go", "package c")
+
+	stager := NewStager(repoDir)
+	err := stager.StageAll()
+	if err != nil {
+		t.Fatalf("StageAll failed: %v", err)
+	}
+
+	// Verify all 3 files are staged
+	staged, err := stager.StagedFiles()
+	if err != nil {
+		t.Fatalf("StagedFiles failed: %v", err)
+	}
+
+	if len(staged) != 3 {
+		t.Errorf("expected 3 staged files, got %d: %v", len(staged), staged)
+	}
+
+	// Verify each file is present
+	stagedSet := make(map[string]bool)
+	for _, f := range staged {
+		stagedSet[f] = true
+	}
+	for _, expected := range []string{"a.go", "b.go", "c.go"} {
+		if !stagedSet[expected] {
+			t.Errorf("expected %q to be staged, staged files: %v", expected, staged)
+		}
+	}
+}
+
+func TestStager_StageAll_ErrorPath(t *testing.T) {
+	// Point stager at a directory that is not a git repo to force git add -A failure
+	tmpDir := t.TempDir()
+
+	stager := NewStager(tmpDir)
+	err := stager.StageAll()
+	if err == nil {
+		t.Fatal("expected error when running StageAll in non-git directory")
+	}
+	if !strings.Contains(err.Error(), "failed to stage all files") {
+		t.Errorf("expected error to mention 'failed to stage all files', got: %v", err)
+	}
+}
+
+func TestStager_isIgnored(t *testing.T) {
+	repoDir := testutil.TestRepo(t)
+
+	// Create .gitignore that ignores *.log files and the build/ directory
+	testutil.CreateFile(t, repoDir, ".gitignore", "*.log\nbuild/\n")
+	testutil.GitAdd(t, repoDir, ".gitignore")
+	testutil.GitCommit(t, repoDir, "add gitignore")
+
+	// Create ignored files
+	testutil.CreateFile(t, repoDir, "debug.log", "log content")
+	testutil.CreateFile(t, repoDir, "build/output.bin", "binary")
+
+	// Create a non-ignored file
+	testutil.CreateFile(t, repoDir, "main.go", "package main")
+
+	stager := NewStager(repoDir)
+
+	t.Run("ignored file by extension", func(t *testing.T) {
+		if !stager.isIgnored("debug.log") {
+			t.Error("expected debug.log to be ignored")
+		}
+	})
+
+	t.Run("ignored file in directory", func(t *testing.T) {
+		if !stager.isIgnored("build/output.bin") {
+			t.Error("expected build/output.bin to be ignored")
+		}
+	})
+
+	t.Run("non-ignored file", func(t *testing.T) {
+		if stager.isIgnored("main.go") {
+			t.Error("expected main.go to not be ignored")
+		}
+	})
+
+	t.Run("nonexistent non-ignored file", func(t *testing.T) {
+		if stager.isIgnored("doesnotexist.go") {
+			t.Error("expected nonexistent non-ignored file to return false")
+		}
+	})
+}
+
+func TestStager_diagnoseFile(t *testing.T) {
+	repoDir := testutil.TestRepo(t)
+
+	// Create initial commit with a tracked file
+	testutil.CreateFile(t, repoDir, "tracked.txt", "content")
+	testutil.GitAdd(t, repoDir, "tracked.txt")
+	testutil.GitCommit(t, repoDir, "initial commit")
+
+	stager := NewStager(repoDir)
+
+	t.Run("existing untracked file", func(t *testing.T) {
+		testutil.CreateFile(t, repoDir, "untracked.txt", "new content")
+
+		result := stager.diagnoseFile("untracked.txt")
+		if result == "" {
+			t.Fatal("expected non-empty diagnosis")
+		}
+		if !strings.Contains(result, "file exists on disk") {
+			t.Errorf("expected diagnosis to mention file exists, got: %s", result)
+		}
+		if !strings.Contains(result, "NOT tracked") {
+			t.Errorf("expected diagnosis to mention not tracked, got: %s", result)
+		}
+	})
+
+	t.Run("tracked file with no changes", func(t *testing.T) {
+		result := stager.diagnoseFile("tracked.txt")
+		if result == "" {
+			t.Fatal("expected non-empty diagnosis")
+		}
+		if !strings.Contains(result, "file exists on disk") {
+			t.Errorf("expected diagnosis to mention file exists, got: %s", result)
+		}
+		if !strings.Contains(result, "file is tracked by git") {
+			t.Errorf("expected diagnosis to mention tracked, got: %s", result)
+		}
+		if !strings.Contains(result, "no changes detected") {
+			t.Errorf("expected diagnosis to mention no changes, got: %s", result)
+		}
+	})
+
+	t.Run("nonexistent file", func(t *testing.T) {
+		result := stager.diagnoseFile("ghost.txt")
+		if result == "" {
+			t.Fatal("expected non-empty diagnosis")
+		}
+		if !strings.Contains(result, "does not exist on disk") {
+			t.Errorf("expected diagnosis to mention file missing, got: %s", result)
+		}
+	})
+
+	t.Run("file involved in rename", func(t *testing.T) {
+		// Stage a rename so diagnoseFile can detect it
+		cmd := exec.Command("git", "mv", "tracked.txt", "renamed.txt")
+		cmd.Dir = repoDir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git mv failed: %s: %v", string(out), err)
+		}
+
+		result := stager.diagnoseFile("tracked.txt")
+		if result == "" {
+			t.Fatal("expected non-empty diagnosis")
+		}
+		if !strings.Contains(result, "SOURCE of a staged rename") {
+			t.Errorf("expected diagnosis to mention rename source, got: %s", result)
+		}
+		if !strings.Contains(result, "renamed.txt") {
+			t.Errorf("expected diagnosis to mention rename destination, got: %s", result)
+		}
+
+		// Also test the destination side
+		resultDest := stager.diagnoseFile("renamed.txt")
+		if !strings.Contains(resultDest, "DESTINATION of a staged rename") {
+			t.Errorf("expected diagnosis to mention rename destination, got: %s", resultDest)
+		}
+	})
+}
+
+func TestStager_expandDirectory(t *testing.T) {
+	repoDir := testutil.TestRepo(t)
+
+	// Create .gitignore to test filtering
+	testutil.CreateFile(t, repoDir, ".gitignore", "*.log\n")
+	testutil.GitAdd(t, repoDir, ".gitignore")
+	testutil.GitCommit(t, repoDir, "add gitignore")
+
+	stager := NewStager(repoDir)
+
+	t.Run("directory with mixed files", func(t *testing.T) {
+		// Create a directory with both tracked-eligible and ignored files
+		testutil.CreateFile(t, repoDir, "src/app.go", "package main")
+		testutil.CreateFile(t, repoDir, "src/util.go", "package util")
+		testutil.CreateFile(t, repoDir, "src/debug.log", "log content") // ignored
+
+		files, err := stager.expandDirectory("src")
+		if err != nil {
+			t.Fatalf("expandDirectory failed: %v", err)
+		}
+
+		// Should include the .go files but not the .log file
+		if len(files) != 2 {
+			t.Errorf("expected 2 non-ignored files, got %d: %v", len(files), files)
+		}
+
+		fileSet := make(map[string]bool)
+		for _, f := range files {
+			fileSet[f] = true
+		}
+		if !fileSet["src/app.go"] {
+			t.Error("expected src/app.go in expanded files")
+		}
+		if !fileSet["src/util.go"] {
+			t.Error("expected src/util.go in expanded files")
+		}
+		if fileSet["src/debug.log"] {
+			t.Error("did not expect src/debug.log (ignored) in expanded files")
+		}
+	})
+
+	t.Run("empty directory", func(t *testing.T) {
+		emptyDir := filepath.Join(repoDir, "emptydir")
+		if err := os.MkdirAll(emptyDir, 0755); err != nil {
+			t.Fatalf("failed to create empty dir: %v", err)
+		}
+
+		files, err := stager.expandDirectory("emptydir")
+		if err != nil {
+			t.Fatalf("expandDirectory failed: %v", err)
+		}
+		if len(files) != 0 {
+			t.Errorf("expected 0 files for empty dir, got %d: %v", len(files), files)
+		}
+	})
+
+	t.Run("nested directory", func(t *testing.T) {
+		testutil.CreateFile(t, repoDir, "deep/a/b/file.txt", "nested")
+
+		files, err := stager.expandDirectory("deep")
+		if err != nil {
+			t.Fatalf("expandDirectory failed: %v", err)
+		}
+		if len(files) != 1 {
+			t.Errorf("expected 1 file, got %d: %v", len(files), files)
+		}
+		if len(files) > 0 && files[0] != "deep/a/b/file.txt" {
+			t.Errorf("expected deep/a/b/file.txt, got %s", files[0])
+		}
+	})
+
+	t.Run("directory with only ignored files", func(t *testing.T) {
+		testutil.CreateFile(t, repoDir, "logs/server.log", "log1")
+		testutil.CreateFile(t, repoDir, "logs/error.log", "log2")
+
+		files, err := stager.expandDirectory("logs")
+		if err != nil {
+			t.Fatalf("expandDirectory failed: %v", err)
+		}
+		if len(files) != 0 {
+			t.Errorf("expected 0 files (all ignored), got %d: %v", len(files), files)
+		}
+	})
 }

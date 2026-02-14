@@ -567,7 +567,7 @@ func handleDiff(flags flags) int {
 	printSuccess(fmt.Sprintf("Provider: %s", userConfig.Provider))
 
 	// Create LLM provider
-	provider, err := llm.NewProvider(userConfig)
+	provider, err := newProviderFunc(userConfig)
 	if err != nil {
 		printError("Failed to create LLM provider", err)
 		return 1
@@ -724,4 +724,3 @@ func handleConfigError(err error) {
 		printError("Failed to load config", err)
 	}
 }
-

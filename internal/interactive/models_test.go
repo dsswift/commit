@@ -203,6 +203,110 @@ func TestRebaseEntry_GetEffectiveMessage(t *testing.T) {
 	})
 }
 
+func TestOperationString_Unknown(t *testing.T) {
+	unknown := Operation(99)
+	if got := unknown.String(); got != "unknown" {
+		t.Errorf("Operation(99).String() = %q, want %q", got, "unknown")
+	}
+}
+
+func TestOperationShortString_Unknown(t *testing.T) {
+	unknown := Operation(99)
+	if got := unknown.ShortString(); got != "?" {
+		t.Errorf("Operation(99).ShortString() = %q, want %q", got, "?")
+	}
+}
+
+func TestWizardStepString_Unknown(t *testing.T) {
+	unknown := WizardStep(99)
+	if got := unknown.String(); got != "Unknown" {
+		t.Errorf("WizardStep(99).String() = %q, want %q", got, "Unknown")
+	}
+}
+
+func TestFindSquashParent_EdgeCases(t *testing.T) {
+	t.Run("empty entries", func(t *testing.T) {
+		if got := FindSquashParent(nil, 0); got != -1 {
+			t.Errorf("FindSquashParent(nil, 0) = %d, want -1", got)
+		}
+	})
+
+	t.Run("out of bounds index", func(t *testing.T) {
+		entries := []RebaseEntry{
+			{Operation: OpPick},
+		}
+		if got := FindSquashParent(entries, 5); got != -1 {
+			t.Errorf("FindSquashParent(entries, 5) = %d, want -1", got)
+		}
+	})
+
+	t.Run("squash with no preceding pick", func(t *testing.T) {
+		entries := []RebaseEntry{
+			{Operation: OpSquash},
+			{Operation: OpSquash},
+		}
+		if got := FindSquashParent(entries, 1); got != -1 {
+			t.Errorf("FindSquashParent with no pick = %d, want -1", got)
+		}
+	})
+
+	t.Run("squash at index 0", func(t *testing.T) {
+		entries := []RebaseEntry{
+			{Operation: OpSquash},
+		}
+		if got := FindSquashParent(entries, 0); got != -1 {
+			t.Errorf("FindSquashParent(entries, 0) for squash = %d, want -1", got)
+		}
+	})
+}
+
+func TestOperationStyle(t *testing.T) {
+	styles := DefaultStyles()
+
+	tests := []struct {
+		op   Operation
+		name string
+	}{
+		{OpPick, "pick"},
+		{OpSquash, "squash"},
+		{OpReword, "reword"},
+		{OpDrop, "drop"},
+		{Operation(99), "unknown defaults to pick"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			style := styles.OperationStyle(tt.op)
+			// Verify style renders a non-empty string when given text
+			rendered := style.Render(tt.op.String())
+			if rendered == "" {
+				t.Errorf("OperationStyle(%v).Render() returned empty string", tt.op)
+			}
+		})
+	}
+}
+
+func TestRenderStepIndicator(t *testing.T) {
+	styles := DefaultStyles()
+
+	steps := []WizardStep{
+		StepSelect,
+		StepPushWarning,
+		StepEdit,
+		StepSquashMessage,
+		StepConfirm,
+	}
+
+	for _, step := range steps {
+		t.Run(step.String(), func(t *testing.T) {
+			result := styles.RenderStepIndicator(step)
+			if result == "" {
+				t.Errorf("RenderStepIndicator(%v) returned empty string", step)
+			}
+		})
+	}
+}
+
 func TestRebaseCommit_Fields(t *testing.T) {
 	now := time.Now()
 	commit := RebaseCommit{

@@ -491,6 +491,47 @@ func TestExecutionError(t *testing.T) {
 	}
 }
 
+func TestValidationError_Error(t *testing.T) {
+	err := &ValidationError{
+		Field:   "commits[0].type",
+		Message: "invalid type 'foo'",
+	}
+
+	got := err.Error()
+	expected := "validation error in commits[0].type: invalid type 'foo'"
+
+	if got != expected {
+		t.Errorf("ValidationError.Error() = %q, want %q", got, expected)
+	}
+}
+
+func TestIsPathSafe(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		expected bool
+	}{
+		{"absolute path", "/etc/passwd", false},
+		{"dotdot only", "..", false},
+		{"dotdot prefix", "../secret.txt", false},
+		{"embedded dotdot", "foo/../../etc/passwd", false},
+		{"normal relative path", "main.go", true},
+		{"nested relative path", "internal/planner/validator.go", true},
+		{"current dir prefix", "./main.go", true},
+		{"deeply nested", "a/b/c/d/e/file.go", true},
+		{"dotdot in middle resolving safe", "foo/bar/../baz.go", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isPathSafe(tt.path)
+			if got != tt.expected {
+				t.Errorf("isPathSafe(%q) = %v, want %v", tt.path, got, tt.expected)
+			}
+		})
+	}
+}
+
 // Helper types and functions
 
 type testError struct {

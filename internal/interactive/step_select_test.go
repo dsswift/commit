@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dsswift/commit/internal/testutil"
 )
@@ -101,5 +102,35 @@ func TestSelectModel_GetParentHash_RootCommit(t *testing.T) {
 	got := m.getParentHash(rootHash)
 	if got != "" {
 		t.Errorf("getParentHash(root) = %s, want empty string", got)
+	}
+}
+
+func TestFormatAge(t *testing.T) {
+	tests := []struct {
+		name     string
+		offset   time.Duration
+		expected string
+	}{
+		{"just now", 30 * time.Second, "just now"},
+		{"1 minute ago", 1 * time.Minute, "1 minute ago"},
+		{"N minutes ago", 15 * time.Minute, "15 minutes ago"},
+		{"1 hour ago", 1 * time.Hour, "1 hour ago"},
+		{"N hours ago", 5 * time.Hour, "5 hours ago"},
+		{"yesterday", 24 * time.Hour, "yesterday"},
+		{"N days ago", 3 * 24 * time.Hour, "3 days ago"},
+		{"1 week ago", 7 * 24 * time.Hour, "1 week ago"},
+		{"N weeks ago", 21 * 24 * time.Hour, "3 weeks ago"},
+		{"1 month ago", 30 * 24 * time.Hour, "1 month ago"},
+		{"N months ago", 90 * 24 * time.Hour, "3 months ago"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := time.Now().Add(-tt.offset)
+			got := formatAge(input)
+			if got != tt.expected {
+				t.Errorf("formatAge(Now - %v) = %q, want %q", tt.offset, got, tt.expected)
+			}
+		})
 	}
 }

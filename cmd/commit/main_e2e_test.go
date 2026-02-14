@@ -884,6 +884,408 @@ func mustJSON(t *testing.T, v interface{}) string {
 	return string(b)
 }
 
+func TestE2E_VerboseCommit(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping E2E test in short mode")
+	}
+
+	// Create a temp git repo
+	tmpDir := t.TempDir()
+
+	runGit := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = tmpDir
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@test.com",
+			"GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@test.com")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v failed: %v\n%s", args, err, out)
+		}
+	}
+
+	runGit("init")
+	runGit("config", "user.email", "test@test.com")
+	runGit("config", "user.name", "Test")
+
+	// Create initial commit
+	initialFile := filepath.Join(tmpDir, "README.md")
+	if err := os.WriteFile(initialFile, []byte("# Test\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGit("add", "README.md")
+	runGit("commit", "-m", "initial commit")
+
+	// Create changes to be committed
+	handlerFile := filepath.Join(tmpDir, "handler.go")
+	if err := os.WriteFile(handlerFile, []byte("package main\nfunc Handler() {}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	configFile := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configFile, []byte("key: value\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Set up mock LLM server
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		scope := "api"
+		resp := chatCompletionResponse{
+			Choices: []chatCompletionChoice{
+				{
+					Message: chatCompletionMessage{
+						Content: mustJSON(t, types.CommitPlan{
+							Commits: []types.PlannedCommit{
+								{
+									Type:    "feat",
+									Scope:   &scope,
+									Message: "add handler endpoint",
+									Files:   []string{"handler.go"},
+								},
+								{
+									Type:    "chore",
+									Message: "add configuration",
+									Files:   []string{"config.yaml"},
+								},
+							},
+						}),
+					},
+					FinishReason: "stop",
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer mockServer.Close()
+
+	// Override provider factory to use mock server
+	origFactory := newProviderFunc
+	newProviderFunc = func(config *types.UserConfig) (llm.Provider, error) {
+		return &mockProvider{baseURL: mockServer.URL}, nil
+	}
+	defer func() { newProviderFunc = origFactory }()
+
+	// Set up fake config so LoadUserConfig() succeeds
+	fakeHome := t.TempDir()
+	configDir := filepath.Join(fakeHome, ".commit-tool")
+	if err := os.MkdirAll(filepath.Join(configDir, "logs", "executions"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	envContent := "COMMIT_PROVIDER=openai\nOPENAI_API_KEY=test-key\n"
+	if err := os.WriteFile(filepath.Join(configDir, ".env"), []byte(envContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", fakeHome)       //nolint:errcheck // test setup
+	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
+
+	// Change to temp dir
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)        //nolint:errcheck // test setup
+	defer os.Chdir(origDir) //nolint:errcheck // test cleanup
+
+	// Run execute with verbose flag
+	result := execute(flags{verbose: true}, nil)
+
+	if result.ExitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", result.ExitCode)
+	}
+
+	if len(result.CommitsCreated) != 2 {
+		t.Errorf("expected 2 commits created, got %d", len(result.CommitsCreated))
+	}
+
+	// Verify git log has the commits
+	cmd := exec.Command("git", "log", "--oneline")
+	cmd.Dir = tmpDir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git log failed: %v", err)
+	}
+
+	logOutput := string(out)
+	if !containsStr(logOutput, "feat(api): add handler endpoint") {
+		t.Errorf("expected feat commit in git log, got:\n%s", logOutput)
+	}
+	if !containsStr(logOutput, "chore: add configuration") {
+		t.Errorf("expected chore commit in git log, got:\n%s", logOutput)
+	}
+}
+
+func TestE2E_HandleDiff(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping E2E test in short mode")
+	}
+
+	// Create a temp git repo
+	tmpDir := t.TempDir()
+
+	runGit := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = tmpDir
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@test.com",
+			"GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@test.com")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v failed: %v\n%s", args, err, out)
+		}
+	}
+
+	runGit("init")
+	runGit("config", "user.email", "test@test.com")
+	runGit("config", "user.name", "Test")
+
+	// Create initial commit with a file
+	targetFile := filepath.Join(tmpDir, "handler.go")
+	if err := os.WriteFile(targetFile, []byte("package main\nfunc Handler() {}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGit("add", "handler.go")
+	runGit("commit", "-m", "initial commit")
+
+	// Modify the file so there's a diff to analyze
+	if err := os.WriteFile(targetFile, []byte("package main\nfunc Handler() { fmt.Println(\"hello\") }\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Override provider factory to use mock
+	origFactory := newProviderFunc
+	newProviderFunc = func(config *types.UserConfig) (llm.Provider, error) {
+		return &mockProvider{}, nil
+	}
+	defer func() { newProviderFunc = origFactory }()
+
+	// Set up fake config so LoadUserConfig() succeeds
+	fakeHome := t.TempDir()
+	configDir := filepath.Join(fakeHome, ".commit-tool")
+	if err := os.MkdirAll(filepath.Join(configDir, "logs", "executions"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	envContent := "COMMIT_PROVIDER=openai\nOPENAI_API_KEY=test-key\n"
+	if err := os.WriteFile(filepath.Join(configDir, ".env"), []byte(envContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", fakeHome)       //nolint:errcheck // test setup
+	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
+
+	// Change to temp dir
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)        //nolint:errcheck // test setup
+	defer os.Chdir(origDir) //nolint:errcheck // test cleanup
+
+	// Run handleDiff
+	code := handleDiff(flags{diffFile: "handler.go"})
+
+	if code != 0 {
+		t.Errorf("expected exit code 0, got %d", code)
+	}
+}
+
+func TestE2E_HandleReverse_Multiple(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping E2E test in short mode")
+	}
+
+	tmpDir := t.TempDir()
+
+	runGit := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = tmpDir
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@test.com",
+			"GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@test.com")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v failed: %v\n%s", args, err, out)
+		}
+	}
+
+	runGit("init")
+	runGit("config", "user.email", "test@test.com")
+	runGit("config", "user.name", "Test")
+
+	// Create initial commit (this one stays)
+	if err := os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Test\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGit("add", "README.md")
+	runGit("commit", "-m", "initial commit")
+
+	// Create second commit (will be reversed)
+	if err := os.WriteFile(filepath.Join(tmpDir, "feature.go"), []byte("package main\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGit("add", "feature.go")
+	runGit("commit", "-m", "feat: add feature")
+
+	// Create third commit (will be reversed)
+	if err := os.WriteFile(filepath.Join(tmpDir, "utils.go"), []byte("package main\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGit("add", "utils.go")
+	runGit("commit", "-m", "feat: add utils")
+
+	// Verify we have 3 commits
+	cmd := exec.Command("git", "rev-list", "--count", "HEAD")
+	cmd.Dir = tmpDir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(out)) != "3" {
+		t.Fatalf("expected 3 commits, got %s", strings.TrimSpace(string(out)))
+	}
+
+	// Reverse the last 2 commits
+	code := handleReverse(tmpDir, 2, false, false)
+	if code != 0 {
+		t.Errorf("expected exit code 0, got %d", code)
+	}
+
+	// Should be back to 1 commit
+	cmd = exec.Command("git", "rev-list", "--count", "HEAD")
+	cmd.Dir = tmpDir
+	out, err = cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(out)) != "1" {
+		t.Errorf("expected 1 commit after reverse, got %s", strings.TrimSpace(string(out)))
+	}
+
+	// Both feature.go and utils.go should be uncommitted now
+	cmd = exec.Command("git", "status", "--porcelain")
+	cmd.Dir = tmpDir
+	out, err = cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	statusOutput := string(out)
+	if !containsStr(statusOutput, "feature.go") {
+		t.Errorf("expected feature.go in working tree after reverse, got:\n%s", statusOutput)
+	}
+	if !containsStr(statusOutput, "utils.go") {
+		t.Errorf("expected utils.go in working tree after reverse, got:\n%s", statusOutput)
+	}
+}
+
+func TestE2E_HandleReverse_TooMany(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping E2E test in short mode")
+	}
+
+	tmpDir := t.TempDir()
+
+	runGit := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = tmpDir
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@test.com",
+			"GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@test.com")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v failed: %v\n%s", args, err, out)
+		}
+	}
+
+	runGit("init")
+	runGit("config", "user.email", "test@test.com")
+	runGit("config", "user.name", "Test")
+
+	// Create only 1 commit
+	if err := os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Test\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGit("add", "README.md")
+	runGit("commit", "-m", "initial commit")
+
+	// Try to reverse 5 commits when only 1 exists
+	code := handleReverse(tmpDir, 5, false, false)
+	if code != 1 {
+		t.Errorf("expected exit code 1, got %d", code)
+	}
+
+	// Verify the commit is still there (nothing was reversed)
+	cmd := exec.Command("git", "rev-list", "--count", "HEAD")
+	cmd.Dir = tmpDir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(out)) != "1" {
+		t.Errorf("expected 1 commit still present, got %s", strings.TrimSpace(string(out)))
+	}
+}
+
+func TestE2E_HandleReverse_VerboseOutput(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping E2E test in short mode")
+	}
+
+	tmpDir := t.TempDir()
+
+	runGit := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = tmpDir
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@test.com",
+			"GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@test.com")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v failed: %v\n%s", args, err, out)
+		}
+	}
+
+	runGit("init")
+	runGit("config", "user.email", "test@test.com")
+	runGit("config", "user.name", "Test")
+
+	// Create initial commit
+	if err := os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Test\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGit("add", "README.md")
+	runGit("commit", "-m", "initial commit")
+
+	// Create a second commit to reverse
+	if err := os.WriteFile(filepath.Join(tmpDir, "feature.go"), []byte("package main\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGit("add", "feature.go")
+	runGit("commit", "-m", "feat: add feature")
+
+	// Reverse with verbose flag
+	code := handleReverse(tmpDir, 1, false, true)
+	if code != 0 {
+		t.Errorf("expected exit code 0, got %d", code)
+	}
+
+	// Should be back to 1 commit
+	cmd := exec.Command("git", "rev-list", "--count", "HEAD")
+	cmd.Dir = tmpDir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(out)) != "1" {
+		t.Errorf("expected 1 commit after reverse, got %s", strings.TrimSpace(string(out)))
+	}
+
+	// feature.go should be uncommitted now
+	cmd = exec.Command("git", "status", "--porcelain")
+	cmd.Dir = tmpDir
+	out, err = cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsStr(string(out), "feature.go") {
+		t.Errorf("expected feature.go in working tree after reverse, got:\n%s", string(out))
+	}
+}
+
 func containsStr(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsIndex(s, substr))
 }
