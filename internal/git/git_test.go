@@ -503,6 +503,17 @@ func TestPushedCommitError(t *testing.T) {
 	})
 }
 
+// gitForceAdd stages files with -f flag (for adding ignored files)
+func gitForceAdd(t *testing.T, repoDir string, files ...string) {
+	t.Helper()
+	args := append([]string{"add", "-f"}, files...)
+	cmd := exec.Command("git", args...)
+	cmd.Dir = repoDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git add -f failed: %s: %v", string(out), err)
+	}
+}
+
 // createGitignore creates a .gitignore file in the test repo
 func createGitignore(t *testing.T, repoDir string, patterns ...string) {
 	t.Helper()
@@ -1255,6 +1266,69 @@ func TestStager_diagnoseFile(t *testing.T) {
 			t.Errorf("expected diagnosis to mention rename destination, got: %s", resultDest)
 		}
 	})
+}
+
+func TestCollector_Status_TrackedIgnoredFile(t *testing.T) {
+	repoDir := testutil.TestRepo(t)
+
+	// Create .gitignore first so the file is ignored before force-adding
+	testutil.CreateFile(t, repoDir, ".gitignore", "ignored-dir/\n")
+	testutil.GitAdd(t, repoDir, ".gitignore")
+	testutil.GitCommit(t, repoDir, "add gitignore")
+
+	// Force-add a file under the ignored directory (simulates git add -f)
+	testutil.CreateFile(t, repoDir, "ignored-dir/tracked.md", "command content")
+	gitForceAdd(t, repoDir, "ignored-dir/tracked.md")
+	testutil.GitCommit(t, repoDir, "force-add tracked file")
+
+	// Modify the tracked-but-ignored file
+	testutil.CreateFile(t, repoDir, "ignored-dir/tracked.md", "updated command content")
+
+	collector := NewCollector(repoDir)
+	status, err := collector.Status()
+	if err != nil {
+		t.Fatalf("Status failed: %v", err)
+	}
+
+	// The tracked-but-ignored file should appear as modified
+	if len(status.Modified) != 1 {
+		t.Errorf("expected 1 modified file, got %d: %v", len(status.Modified), status.Modified)
+	}
+	if len(status.Modified) > 0 && status.Modified[0] != "ignored-dir/tracked.md" {
+		t.Errorf("expected 'ignored-dir/tracked.md', got %q", status.Modified[0])
+	}
+}
+
+func TestStager_StageFiles_TrackedIgnoredFile(t *testing.T) {
+	repoDir := testutil.TestRepo(t)
+
+	// Create .gitignore first so the file is ignored before force-adding
+	testutil.CreateFile(t, repoDir, ".gitignore", "ignored-dir/\n")
+	testutil.GitAdd(t, repoDir, ".gitignore")
+	testutil.GitCommit(t, repoDir, "add gitignore")
+
+	// Force-add a file under the ignored directory
+	testutil.CreateFile(t, repoDir, "ignored-dir/tracked.md", "command content")
+	gitForceAdd(t, repoDir, "ignored-dir/tracked.md")
+	testutil.GitCommit(t, repoDir, "force-add tracked file")
+
+	// Modify the tracked-but-ignored file
+	testutil.CreateFile(t, repoDir, "ignored-dir/tracked.md", "updated command content")
+
+	stager := NewStager(repoDir)
+	err := stager.StageFiles([]string{"ignored-dir/tracked.md"})
+	if err != nil {
+		t.Fatalf("StageFiles should succeed for tracked-but-ignored file, got: %v", err)
+	}
+
+	// Verify file is staged
+	staged, err := stager.StagedFiles()
+	if err != nil {
+		t.Fatalf("StagedFiles failed: %v", err)
+	}
+	if len(staged) != 1 || staged[0] != "ignored-dir/tracked.md" {
+		t.Errorf("expected ['ignored-dir/tracked.md'], got %v", staged)
+	}
 }
 
 func TestStager_expandDirectory(t *testing.T) {

@@ -182,6 +182,19 @@ func (c *Collector) filterIgnoredFiles(files []string) []string {
 		}
 	}
 
+	// Re-include tracked files that happen to match .gitignore patterns.
+	// .gitignore only prevents untracked files from being staged; tracked files
+	// that match ignore patterns should still be committable.
+	if len(ignoredSet) > 0 {
+		var ignoredFiles []string
+		for f := range ignoredSet {
+			ignoredFiles = append(ignoredFiles, f)
+		}
+		for _, f := range c.getTrackedFiles(ignoredFiles) {
+			delete(ignoredSet, f)
+		}
+	}
+
 	// Filter out ignored files
 	var result []string
 	for _, f := range files {
@@ -191,6 +204,42 @@ func (c *Collector) filterIgnoredFiles(files []string) []string {
 	}
 
 	return result
+}
+
+// getTrackedFiles returns the subset of files that are tracked by git.
+func (c *Collector) getTrackedFiles(files []string) []string {
+	if len(files) == 0 {
+		return nil
+	}
+
+	args := []string{"ls-files", "--error-unmatch", "--"}
+	args = append(args, files...)
+	cmd := exec.Command("git", args...)
+	cmd.Dir = c.workDir
+
+	out, err := cmd.Output()
+	if err != nil {
+		// Exit code 1 means one or more files are not tracked.
+		// Parse stdout for the ones that are tracked.
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return parseFileList(string(out))
+		}
+		return nil
+	}
+
+	return parseFileList(string(out))
+}
+
+// parseFileList splits newline-delimited output into a slice of non-empty strings.
+func parseFileList(output string) []string {
+	var files []string
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			files = append(files, line)
+		}
+	}
+	return files
 }
 
 // Diff returns the diff for the specified files or all changes.

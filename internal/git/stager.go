@@ -90,12 +90,35 @@ func (s *Stager) StageFiles(files []string) error {
 	}
 
 	// EXECUTION
-	args := append([]string{"add", "--"}, filesToStage...)
-	cmd := exec.Command("git", args...)
-	cmd.Dir = s.workDir
+	// Separate tracked-but-ignored files from regular files. git add refuses
+	// tracked files matching ignore patterns without -f, even though they're
+	// already in the index. Use git check-ignore --no-index to detect this,
+	// since plain check-ignore skips tracked files.
+	var regularFiles, forceFiles []string
+	for _, f := range filesToStage {
+		if s.isIgnoredPattern(f) && s.isTrackedFile(f) {
+			forceFiles = append(forceFiles, f)
+		} else {
+			regularFiles = append(regularFiles, f)
+		}
+	}
 
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to stage files: %s: %w", string(out), err)
+	if len(regularFiles) > 0 {
+		args := append([]string{"add", "--"}, regularFiles...)
+		cmd := exec.Command("git", args...)
+		cmd.Dir = s.workDir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to stage files: %s: %w", string(out), err)
+		}
+	}
+
+	if len(forceFiles) > 0 {
+		args := append([]string{"add", "-f", "--"}, forceFiles...)
+		cmd := exec.Command("git", args...)
+		cmd.Dir = s.workDir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to stage tracked-but-ignored files: %s: %w", string(out), err)
+		}
 	}
 
 	// POSTCONDITIONS
@@ -129,6 +152,10 @@ func (s *Stager) StageFiles(files []string) error {
 			}
 			// Check if file is ignored by git
 			if s.isIgnored(f) {
+				if s.isTrackedFile(f) {
+					// Tracked file matching .gitignore — git add should have worked
+					return fmt.Errorf("file could not be staged (tracked but ignored): %s\n%s", f, s.diagnoseFile(f))
+				}
 				return fmt.Errorf("file is ignored by .gitignore: %s", f)
 			}
 			// Diagnose why staging failed
@@ -146,9 +173,18 @@ func (s *Stager) StageFiles(files []string) error {
 	return nil
 }
 
-// isIgnored checks if a file is ignored by git.
+// isIgnored checks if a file is ignored by git (skips tracked files).
 func (s *Stager) isIgnored(file string) bool {
 	cmd := exec.Command("git", "check-ignore", "-q", file)
+	cmd.Dir = s.workDir
+	return cmd.Run() == nil
+}
+
+// isIgnoredPattern checks if a file matches a .gitignore pattern, regardless
+// of tracking status. Unlike isIgnored, this returns true even for tracked files
+// that match an ignore rule.
+func (s *Stager) isIgnoredPattern(file string) bool {
+	cmd := exec.Command("git", "check-ignore", "-q", "--no-index", file)
 	cmd.Dir = s.workDir
 	return cmd.Run() == nil
 }
