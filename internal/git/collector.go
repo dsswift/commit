@@ -646,35 +646,54 @@ func (c *Collector) parseCommitLog(out []byte) []CommitInfo {
 	return commits
 }
 
-// batchResolvePushedStatus determines pushed status for all commits using a single
-// git log call to find local-only commits, then marks the rest as pushed.
+// batchResolvePushedStatus determines pushed status for all commits by comparing
+// against the current branch's upstream tracking branch.
 func (c *Collector) batchResolvePushedStatus(commits []CommitInfo) {
 	if len(commits) == 0 {
 		return
 	}
 
 	localOnly := c.getLocalOnlyCommits()
+	if localOnly == nil {
+		// nil means no upstream or error -- all commits are local (IsPushed defaults to false)
+		return
+	}
 
 	for i := range commits {
 		commits[i].IsPushed = !localOnly[commits[i].Hash]
 	}
 }
 
-// getLocalOnlyCommits returns a set of commit hashes that exist only locally
-// (not reachable from any remote tracking branch).
+// getLocalOnlyCommits returns a set of commit hashes that have not been pushed
+// to the current branch's upstream tracking branch. Returns nil if the branch
+// has no upstream (all commits are local) or on error (safe default).
 func (c *Collector) getLocalOnlyCommits() map[string]bool {
-	localOnly := make(map[string]bool)
+	// Check if current branch has an upstream tracking branch
+	upCmd := exec.Command("git", "rev-parse", "--abbrev-ref", "@{upstream}")
+	upCmd.Dir = c.workDir
 
-	// Get all local-only commits in one call: commits on HEAD not reachable from any remote
-	cmd := exec.Command("git", "log", "--format=%H", "--not", "--remotes")
+	upOut, err := upCmd.Output()
+	if err != nil {
+		// No upstream configured -- all commits are local
+		return nil
+	}
+
+	upstream := strings.TrimSpace(string(upOut))
+	if upstream == "" {
+		return nil
+	}
+
+	// Get commits on HEAD not reachable from upstream
+	cmd := exec.Command("git", "log", "--format=%H", upstream+"..HEAD")
 	cmd.Dir = c.workDir
 
 	out, err := cmd.Output()
 	if err != nil {
-		// If this fails (e.g., no remotes), treat all commits as local
-		return localOnly
+		// On error, treat all as local (safe default)
+		return nil
 	}
 
+	localOnly := make(map[string]bool)
 	scanner := bufio.NewScanner(bytes.NewReader(out))
 	for scanner.Scan() {
 		hash := strings.TrimSpace(scanner.Text())

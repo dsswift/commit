@@ -618,11 +618,12 @@ func TestCollector_parseCommitLog(t *testing.T) {
 	}
 }
 
-// TestCollector_batchResolvePushedStatus verifies pushed status resolution.
-func TestCollector_batchResolvePushedStatus(t *testing.T) {
+// TestCollector_batchResolvePushedStatus_NoUpstream verifies that commits are
+// treated as unpushed when the branch has no upstream tracking branch.
+func TestCollector_batchResolvePushedStatus_NoUpstream(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
-	// Create commits
+	// Create commits on a branch with no upstream
 	testutil.CreateFile(t, repoDir, "file.txt", "v1")
 	testutil.GitAdd(t, repoDir, "file.txt")
 	testutil.GitCommit(t, repoDir, "first")
@@ -648,15 +649,73 @@ func TestCollector_batchResolvePushedStatus(t *testing.T) {
 		{Hash: hash2, Message: "second"},
 	}
 
-	// batchResolvePushedStatus should run without error and set IsPushed on each commit
 	collector.batchResolvePushedStatus(commits)
 
-	// Verify the method ran (IsPushed was resolved for all commits)
-	// The exact value depends on whether remotes exist and the git version,
-	// but the method should not panic or leave fields unset.
+	// No upstream means all commits should be unpushed
 	for _, c := range commits {
-		// IsPushed should be set (either true or false) -- we just verify the method ran
-		_ = c.IsPushed
+		if c.IsPushed {
+			t.Errorf("commit %q should not be marked as pushed (no upstream)", c.Message)
+		}
+	}
+}
+
+// TestCollector_batchResolvePushedStatus_WithUpstream verifies that commits
+// ahead of the upstream are unpushed while those on the upstream are pushed.
+func TestCollector_batchResolvePushedStatus_WithUpstream(t *testing.T) {
+	// Create a bare "remote" repo
+	remoteDir := t.TempDir()
+	run := func(dir string, args ...string) {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v failed: %s\n%s", args, err, out)
+		}
+	}
+
+	run(remoteDir, "init", "--bare")
+
+	// Clone it to get a repo with an upstream
+	repoDir := t.TempDir()
+	run(repoDir, "clone", remoteDir, ".")
+	run(repoDir, "config", "user.email", "test@test.com")
+	run(repoDir, "config", "user.name", "Test")
+
+	// Create a commit and push it
+	testutil.CreateFile(t, repoDir, "file.txt", "v1")
+	run(repoDir, "add", "file.txt")
+	run(repoDir, "commit", "-m", "pushed commit")
+
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = repoDir
+	out, _ := cmd.Output()
+	pushedHash := strings.TrimSpace(string(out))
+
+	run(repoDir, "push", "origin", "main")
+
+	// Create a local-only commit (not pushed)
+	testutil.CreateFile(t, repoDir, "file.txt", "v2")
+	run(repoDir, "add", "file.txt")
+	run(repoDir, "commit", "-m", "local commit")
+
+	cmd = exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = repoDir
+	out, _ = cmd.Output()
+	localHash := strings.TrimSpace(string(out))
+
+	collector := NewCollector(repoDir)
+
+	commits := []CommitInfo{
+		{Hash: pushedHash, Message: "pushed commit"},
+		{Hash: localHash, Message: "local commit"},
+	}
+
+	collector.batchResolvePushedStatus(commits)
+
+	if !commits[0].IsPushed {
+		t.Error("pushed commit should be marked as pushed")
+	}
+	if commits[1].IsPushed {
+		t.Error("local commit should not be marked as pushed")
 	}
 }
 
@@ -670,8 +729,9 @@ func TestCollector_batchResolvePushedStatus_Empty(t *testing.T) {
 	collector.batchResolvePushedStatus(commits)
 }
 
-// TestCollector_getLocalOnlyCommits verifies local-only commit detection runs without error.
-func TestCollector_getLocalOnlyCommits(t *testing.T) {
+// TestCollector_getLocalOnlyCommits_NoUpstream verifies nil is returned when
+// the branch has no upstream tracking branch.
+func TestCollector_getLocalOnlyCommits_NoUpstream(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 
 	testutil.CreateFile(t, repoDir, "file.txt", "v1")
@@ -680,13 +740,10 @@ func TestCollector_getLocalOnlyCommits(t *testing.T) {
 
 	collector := NewCollector(repoDir)
 
-	// Should not panic or error, even with no remotes
+	// No upstream configured -- should return nil (all commits are local)
 	localOnly := collector.getLocalOnlyCommits()
-
-	// The result is a map of commit hashes; exact contents depend on git version
-	// and remote configuration. We verify it returns a valid (possibly empty) map.
-	if localOnly == nil {
-		t.Error("expected non-nil map from getLocalOnlyCommits")
+	if localOnly != nil {
+		t.Errorf("expected nil from getLocalOnlyCommits with no upstream, got map with %d entries", len(localOnly))
 	}
 }
 
@@ -697,9 +754,9 @@ func TestCollector_getLocalOnlyCommits_EmptyRepo(t *testing.T) {
 	collector := NewCollector(repoDir)
 	localOnly := collector.getLocalOnlyCommits()
 
-	// Empty repo has no commits, so the map should be empty
-	if len(localOnly) != 0 {
-		t.Errorf("expected empty local-only set for repo with no commits, got %d entries", len(localOnly))
+	// Empty repo has no upstream, so nil is returned
+	if localOnly != nil {
+		t.Errorf("expected nil for empty repo, got map with %d entries", len(localOnly))
 	}
 }
 
