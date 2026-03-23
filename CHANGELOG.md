@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.14.0](https://github.com/dsswift/commit/compare/v1.13.0...v1.14.0) (2026-03-23)
+
+
+### Features
+
+* change diff analysis to changelog format ([0021140](https://github.com/dsswift/commit/commit/0021140fda0baad3bcad5bd8a5fbb9e6f0aa1ba8))
+
+
+### Bug Fixes
+
+* allow committing tracked files matching gitignore ([8747393](https://github.com/dsswift/commit/commit/8747393363845672fedbe8110d0803843805a5f7))
+* check upstream branch for pushed status ([7008317](https://github.com/dsswift/commit/commit/70083172bff83d9fe46681e35bdfa7203e1b829b))
+
 ## [1.13.0](https://github.com/dsswift/commit/compare/v1.12.0...v1.13.0) (2026-02-14)
 
 
