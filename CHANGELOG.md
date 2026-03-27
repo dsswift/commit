@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.14.1](https://github.com/dsswift/commit/compare/v1.14.0...v1.14.1) (2026-03-27)
+
+
+### Bug Fixes
+
+* set default branch to main in test repos ([19e2aa4](https://github.com/dsswift/commit/commit/19e2aa4d7810c678ab5646c215ce00b1e316f29e))
+
 ## [1.14.0](https://github.com/dsswift/commit/compare/v1.13.0...v1.14.0) (2026-03-23)
 
 
