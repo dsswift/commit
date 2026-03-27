@@ -1,6 +1,6 @@
 module github.com/dsswift/commit
 
-go 1.24.13
+go 1.25.8
 
 require (
 	github.com/charmbracelet/bubbles v1.0.0
