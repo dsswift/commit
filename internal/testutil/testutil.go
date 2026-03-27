@@ -26,7 +26,7 @@ func TestRepo(t *testing.T) string {
 
 	tmpDir := t.TempDir()
 
-	cmd := exec.Command("git", "init")
+	cmd := exec.Command("git", "init", "-b", "main")
 	cmd.Dir = tmpDir
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("failed to init git repo: %v", err)

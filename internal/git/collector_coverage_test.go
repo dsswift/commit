@@ -672,7 +672,7 @@ func TestCollector_batchResolvePushedStatus_WithUpstream(t *testing.T) {
 		}
 	}
 
-	run(remoteDir, "init", "--bare")
+	run(remoteDir, "init", "--bare", "-b", "main")
 
 	// Clone it to get a repo with an upstream
 	repoDir := t.TempDir()
