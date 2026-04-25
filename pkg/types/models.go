@@ -68,6 +68,10 @@ type UserConfig struct {
 	AzureFoundryEndpoint   string `json:"-"`
 	AzureFoundryAPIKey     string `json:"-"`
 	AzureFoundryDeployment string `json:"azureFoundryDeployment,omitempty"`
+
+	// Optional overrides
+	BaseURL    string `json:"baseUrl,omitempty"`    // Override provider API URL (proxy/enterprise)
+	TimeoutSec int    `json:"timeoutSec,omitempty"` // Override HTTP timeout in seconds (default: 60)
 }
 
 // ScopeConfig defines a path-to-scope mapping.
@@ -84,9 +88,10 @@ type CommitTypeConfig struct {
 
 // RepoConfig represents the repository-specific configuration from .commit.json.
 type RepoConfig struct {
-	Scopes       []ScopeConfig    `json:"scopes"`
-	DefaultScope *string          `json:"defaultScope,omitempty"`
-	CommitTypes  CommitTypeConfig `json:"commitTypes,omitempty"`
+	Scopes           []ScopeConfig    `json:"scopes"`
+	DefaultScope     *string          `json:"defaultScope,omitempty"`
+	CommitTypes      CommitTypeConfig `json:"commitTypes,omitempty"`
+	MaxMessageLength int              `json:"maxMessageLength,omitempty"`
 }
 
 // DefaultCommitTypes returns the standard set of allowed commit types.

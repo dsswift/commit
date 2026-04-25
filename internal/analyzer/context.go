@@ -15,6 +15,8 @@ const (
 	MaxDiffChars = 4000
 	// RecentCommitCount is the number of recent commits to include for style reference.
 	RecentCommitCount = 10
+	// DefaultMaxMessageLength is the default max commit message length (subject line).
+	DefaultMaxMessageLength = 50
 )
 
 // ContextBuilder builds the analysis request for the LLM.
@@ -83,7 +85,7 @@ func (b *ContextBuilder) Build(stagedOnly bool) (*types.AnalysisRequest, error) 
 		HasScopes:     config.HasScopes(b.repoConfig),
 		Rules: types.CommitRules{
 			Types:            b.repoConfig.AllowedTypes(),
-			MaxMessageLength: 50,
+			MaxMessageLength: b.maxMessageLength(),
 			BehavioralTest:   "feat = behavior change, refactor = same behavior different structure",
 		},
 	}
@@ -181,7 +183,7 @@ func (b *ContextBuilder) BuildForFiles(files []string) (*types.AnalysisRequest, 
 		HasScopes:     config.HasScopes(b.repoConfig),
 		Rules: types.CommitRules{
 			Types:            b.repoConfig.AllowedTypes(),
-			MaxMessageLength: 50,
+			MaxMessageLength: b.maxMessageLength(),
 			BehavioralTest:   "feat = behavior change, refactor = same behavior different structure",
 		},
 	}, nil
@@ -210,4 +212,12 @@ func Summary(req *types.AnalysisRequest) string {
 
 	return fmt.Sprintf("%d files, %d chars diff, %d scopes detected",
 		len(req.Files), len(req.Diff), len(scopes))
+}
+
+// maxMessageLength returns the configured max message length, falling back to the default.
+func (b *ContextBuilder) maxMessageLength() int {
+	if b.repoConfig.MaxMessageLength > 0 {
+		return b.repoConfig.MaxMessageLength
+	}
+	return DefaultMaxMessageLength
 }

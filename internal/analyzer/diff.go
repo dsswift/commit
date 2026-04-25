@@ -91,7 +91,8 @@ func GetDiff(req *DiffRequest) (*DiffResult, error) {
 
 	numstatCmd := exec.Command("git", numstatArgs...)
 	numstatCmd.Dir = req.GitRoot
-	numstatOutput, _ := numstatCmd.Output()
+	numstatOutput, err := numstatCmd.Output()
+	_ = err // numstat failure is non-fatal; stats will be empty
 
 	if len(numstatOutput) > 0 {
 		parts := strings.Fields(string(numstatOutput))

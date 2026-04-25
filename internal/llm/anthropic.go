@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/dsswift/commit/internal/assert"
 	"github.com/dsswift/commit/pkg/types"
@@ -25,7 +24,7 @@ type AnthropicProvider struct {
 }
 
 // NewAnthropicProvider creates a new Anthropic provider.
-func NewAnthropicProvider(apiKey, model string) (*AnthropicProvider, error) {
+func NewAnthropicProvider(apiKey, model string, opts ProviderOptions) (*AnthropicProvider, error) {
 	assert.NotEmptyString(apiKey, "Anthropic API key is required")
 
 	if model == "" {
@@ -35,8 +34,8 @@ func NewAnthropicProvider(apiKey, model string) (*AnthropicProvider, error) {
 	return &AnthropicProvider{
 		apiKey:  apiKey,
 		model:   model,
-		baseURL: anthropicAPIURL,
-		client:  newHTTPClient(60 * time.Second),
+		baseURL: opts.baseURLOr(anthropicAPIURL),
+		client:  newHTTPClient(opts.timeout()),
 	}, nil
 }
 

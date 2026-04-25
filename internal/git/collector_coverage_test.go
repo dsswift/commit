@@ -1,6 +1,7 @@
 package git
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -576,7 +577,7 @@ func TestCollector_parseCommitLog(t *testing.T) {
 		{
 			name: "multiple commits",
 			input: strings.Join([]string{
-				"aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000|aaaa000|Bob|" + strings.TrimSpace(string(rune(now))) + "|fix: bug",
+				"aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000|aaaa000|Bob|" + fmt.Sprintf("%d", now) + "|fix: bug",
 				"bbbb1111bbbb1111bbbb1111bbbb1111bbbb1111|bbbb111|Carol|1700000001|docs: update readme",
 			}, "\n") + "\n",
 			expected: 2,

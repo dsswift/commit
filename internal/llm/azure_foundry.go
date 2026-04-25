@@ -6,16 +6,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/dsswift/commit/internal/assert"
 	"github.com/dsswift/commit/pkg/types"
 )
 
 const (
-	defaultAzureFoundryTimeout = 60 * time.Second
-	azureAnthropicAPIVersion   = "2023-06-01"
-	azureOpenAIAPIVersion      = "2024-02-15-preview"
+	azureAnthropicAPIVersion = "2023-06-01"
+	azureOpenAIAPIVersion    = "2024-02-15-preview"
 )
 
 // AzureFoundryProvider implements the Provider interface for Azure AI Foundry.
@@ -30,7 +28,7 @@ type AzureFoundryProvider struct {
 }
 
 // NewAzureFoundryProvider creates a new Azure Foundry provider.
-func NewAzureFoundryProvider(endpoint, apiKey, deployment, model string) (*AzureFoundryProvider, error) {
+func NewAzureFoundryProvider(endpoint, apiKey, deployment, model string, opts ProviderOptions) (*AzureFoundryProvider, error) {
 	assert.NotEmptyString(endpoint, "Azure Foundry endpoint is required")
 	assert.NotEmptyString(apiKey, "Azure Foundry API key is required")
 	assert.NotEmptyString(deployment, "Azure Foundry deployment name is required")
@@ -47,7 +45,7 @@ func NewAzureFoundryProvider(endpoint, apiKey, deployment, model string) (*Azure
 		deployment:  deployment,
 		model:       model,
 		isAnthropic: isAnthropic,
-		client:      newHTTPClient(defaultAzureFoundryTimeout),
+		client:      newHTTPClient(opts.timeout()),
 	}, nil
 }
 

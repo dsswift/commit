@@ -3,7 +3,6 @@ package llm
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"github.com/dsswift/commit/internal/assert"
 	"github.com/dsswift/commit/pkg/types"
@@ -23,7 +22,7 @@ type GrokProvider struct {
 }
 
 // NewGrokProvider creates a new Grok provider.
-func NewGrokProvider(apiKey, model string) (*GrokProvider, error) {
+func NewGrokProvider(apiKey, model string, opts ProviderOptions) (*GrokProvider, error) {
 	assert.NotEmptyString(apiKey, "Grok API key is required")
 
 	if model == "" {
@@ -33,8 +32,8 @@ func NewGrokProvider(apiKey, model string) (*GrokProvider, error) {
 	return &GrokProvider{
 		apiKey:  apiKey,
 		model:   model,
-		baseURL: grokAPIURL,
-		client:  newHTTPClient(60 * time.Second),
+		baseURL: opts.baseURLOr(grokAPIURL),
+		client:  newHTTPClient(opts.timeout()),
 	}, nil
 }
 

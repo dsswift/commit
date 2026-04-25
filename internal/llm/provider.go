@@ -5,9 +5,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/dsswift/commit/pkg/types"
 )
+
+const defaultTimeoutSec = 60
 
 // Provider is the interface for LLM providers.
 type Provider interface {
@@ -24,8 +27,33 @@ type Provider interface {
 	Model() string
 }
 
+// ProviderOptions holds optional overrides for provider construction.
+type ProviderOptions struct {
+	BaseURL    string
+	TimeoutSec int
+}
+
+func (o ProviderOptions) timeout() time.Duration {
+	if o.TimeoutSec > 0 {
+		return time.Duration(o.TimeoutSec) * time.Second
+	}
+	return time.Duration(defaultTimeoutSec) * time.Second
+}
+
+func (o ProviderOptions) baseURLOr(fallback string) string {
+	if o.BaseURL != "" {
+		return o.BaseURL
+	}
+	return fallback
+}
+
 // NewProvider creates a provider based on the user configuration.
 func NewProvider(config *types.UserConfig) (Provider, error) {
+	opts := ProviderOptions{
+		BaseURL:    config.BaseURL,
+		TimeoutSec: config.TimeoutSec,
+	}
+
 	switch config.Provider {
 	case "azure-foundry":
 		return NewAzureFoundryProvider(
@@ -33,15 +61,16 @@ func NewProvider(config *types.UserConfig) (Provider, error) {
 			config.AzureFoundryAPIKey,
 			config.AzureFoundryDeployment,
 			config.Model,
+			opts,
 		)
 	case "anthropic":
-		return NewAnthropicProvider(config.AnthropicAPIKey, config.Model)
+		return NewAnthropicProvider(config.AnthropicAPIKey, config.Model, opts)
 	case "openai":
-		return NewOpenAIProvider(config.OpenAIAPIKey, config.Model)
+		return NewOpenAIProvider(config.OpenAIAPIKey, config.Model, opts)
 	case "grok":
-		return NewGrokProvider(config.GrokAPIKey, config.Model)
+		return NewGrokProvider(config.GrokAPIKey, config.Model, opts)
 	case "gemini":
-		return NewGeminiProvider(config.GeminiAPIKey, config.Model)
+		return NewGeminiProvider(config.GeminiAPIKey, config.Model, opts)
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", config.Provider)
 	}

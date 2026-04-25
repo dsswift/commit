@@ -365,45 +365,45 @@ func TestProviderError(t *testing.T) {
 }
 
 func TestAnthropicProvider_Model(t *testing.T) {
-	provider, _ := NewAnthropicProvider("key", "")
+	provider, _ := NewAnthropicProvider("key", "", ProviderOptions{})
 	if provider.Model() != defaultAnthropicModel {
 		t.Errorf("expected default model, got %q", provider.Model())
 	}
 
-	provider, _ = NewAnthropicProvider("key", "custom-model")
+	provider, _ = NewAnthropicProvider("key", "custom-model", ProviderOptions{})
 	if provider.Model() != "custom-model" {
 		t.Errorf("expected 'custom-model', got %q", provider.Model())
 	}
 }
 
 func TestOpenAIProvider_Model(t *testing.T) {
-	provider, _ := NewOpenAIProvider("key", "")
+	provider, _ := NewOpenAIProvider("key", "", ProviderOptions{})
 	if provider.Model() != defaultOpenAIModel {
 		t.Errorf("expected default model, got %q", provider.Model())
 	}
 }
 
 func TestGrokProvider_Model(t *testing.T) {
-	provider, _ := NewGrokProvider("key", "")
+	provider, _ := NewGrokProvider("key", "", ProviderOptions{})
 	if provider.Model() != defaultGrokModel {
 		t.Errorf("expected default model, got %q", provider.Model())
 	}
 }
 
 func TestGeminiProvider_Model(t *testing.T) {
-	provider, _ := NewGeminiProvider("key", "")
+	provider, _ := NewGeminiProvider("key", "", ProviderOptions{})
 	if provider.Model() != defaultGeminiModel {
 		t.Errorf("expected default model, got %q", provider.Model())
 	}
 }
 
 func TestAzureFoundryProvider_Model(t *testing.T) {
-	provider, _ := NewAzureFoundryProvider("https://test.com", "key", "my-deployment", "")
+	provider, _ := NewAzureFoundryProvider("https://test.com", "key", "my-deployment", "", ProviderOptions{})
 	if provider.Model() != "my-deployment" {
 		t.Errorf("expected 'my-deployment', got %q", provider.Model())
 	}
 
-	provider, _ = NewAzureFoundryProvider("https://test.com", "key", "my-deployment", "custom-model")
+	provider, _ = NewAzureFoundryProvider("https://test.com", "key", "my-deployment", "custom-model", ProviderOptions{})
 	if provider.Model() != "custom-model" {
 		t.Errorf("expected 'custom-model', got %q", provider.Model())
 	}

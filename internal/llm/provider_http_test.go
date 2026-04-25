@@ -127,26 +127,22 @@ func geminiEmptyBody() string {
 // --- Provider factory helpers ---
 
 func newTestAnthropic(serverURL string) *AnthropicProvider {
-	p, _ := NewAnthropicProvider("test-key", "test-model")
-	p.baseURL = serverURL
+	p, _ := NewAnthropicProvider("test-key", "test-model", ProviderOptions{BaseURL: serverURL})
 	return p
 }
 
 func newTestOpenAI(serverURL string) *OpenAIProvider {
-	p, _ := NewOpenAIProvider("test-key", "test-model")
-	p.baseURL = serverURL
+	p, _ := NewOpenAIProvider("test-key", "test-model", ProviderOptions{BaseURL: serverURL})
 	return p
 }
 
 func newTestGrok(serverURL string) *GrokProvider {
-	p, _ := NewGrokProvider("test-key", "test-model")
-	p.baseURL = serverURL
+	p, _ := NewGrokProvider("test-key", "test-model", ProviderOptions{BaseURL: serverURL})
 	return p
 }
 
 func newTestGemini(serverURL string) *GeminiProvider {
-	p, _ := NewGeminiProvider("test-key", "test-model")
-	p.baseURL = serverURL + "/%s"
+	p, _ := NewGeminiProvider("test-key", "test-model", ProviderOptions{BaseURL: serverURL + "/%s"})
 	return p
 }
 
@@ -1184,12 +1180,12 @@ func azureAnthropicEmptyBody() string {
 // --- Azure Foundry provider factory helpers ---
 
 func newTestAzureFoundryAnthropic(serverURL string) *AzureFoundryProvider {
-	p, _ := NewAzureFoundryProvider(serverURL, "test-key", "claude-3-sonnet", "claude-3-sonnet")
+	p, _ := NewAzureFoundryProvider(serverURL, "test-key", "claude-3-sonnet", "claude-3-sonnet", ProviderOptions{})
 	return p
 }
 
 func newTestAzureFoundryOpenAI(serverURL string) *AzureFoundryProvider {
-	p, _ := NewAzureFoundryProvider(serverURL, "test-key", "gpt-4o", "gpt-4o")
+	p, _ := NewAzureFoundryProvider(serverURL, "test-key", "gpt-4o", "gpt-4o", ProviderOptions{})
 	return p
 }
 

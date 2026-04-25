@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/dsswift/commit/internal/assert"
@@ -284,7 +285,7 @@ func (s *Stager) fullPath(file string) string {
 	if strings.HasPrefix(file, "/") {
 		return file
 	}
-	return s.workDir + "/" + file
+	return filepath.Join(s.workDir, file)
 }
 
 // expandDirectory returns all untracked, non-ignored files within a directory.

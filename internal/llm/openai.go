@@ -3,7 +3,6 @@ package llm
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"github.com/dsswift/commit/internal/assert"
 	"github.com/dsswift/commit/pkg/types"
@@ -23,7 +22,7 @@ type OpenAIProvider struct {
 }
 
 // NewOpenAIProvider creates a new OpenAI provider.
-func NewOpenAIProvider(apiKey, model string) (*OpenAIProvider, error) {
+func NewOpenAIProvider(apiKey, model string, opts ProviderOptions) (*OpenAIProvider, error) {
 	assert.NotEmptyString(apiKey, "OpenAI API key is required")
 
 	if model == "" {
@@ -33,8 +32,8 @@ func NewOpenAIProvider(apiKey, model string) (*OpenAIProvider, error) {
 	return &OpenAIProvider{
 		apiKey:  apiKey,
 		model:   model,
-		baseURL: openaiAPIURL,
-		client:  newHTTPClient(60 * time.Second),
+		baseURL: opts.baseURLOr(openaiAPIURL),
+		client:  newHTTPClient(opts.timeout()),
 	}, nil
 }
 

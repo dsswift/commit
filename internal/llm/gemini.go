@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/dsswift/commit/internal/assert"
 	"github.com/dsswift/commit/pkg/types"
@@ -25,7 +24,7 @@ type GeminiProvider struct {
 }
 
 // NewGeminiProvider creates a new Gemini provider.
-func NewGeminiProvider(apiKey, model string) (*GeminiProvider, error) {
+func NewGeminiProvider(apiKey, model string, opts ProviderOptions) (*GeminiProvider, error) {
 	assert.NotEmptyString(apiKey, "Gemini API key is required")
 
 	if model == "" {
@@ -35,8 +34,8 @@ func NewGeminiProvider(apiKey, model string) (*GeminiProvider, error) {
 	return &GeminiProvider{
 		apiKey:  apiKey,
 		model:   model,
-		baseURL: geminiAPIURL,
-		client:  newHTTPClient(60 * time.Second),
+		baseURL: opts.baseURLOr(geminiAPIURL),
+		client:  newHTTPClient(opts.timeout()),
 	}, nil
 }
 

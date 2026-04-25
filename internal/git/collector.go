@@ -263,9 +263,11 @@ func (c *Collector) Diff(stagedOnly bool, files ...string) (string, error) {
 
 	out, err := cmd.Output()
 	if err != nil {
-		// Exit code 1 is normal when there are no changes
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-			return "", nil
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			// Exit code 128 typically means no HEAD exists yet (initial commit)
+			if exitErr.ExitCode() == 128 {
+				return "", nil
+			}
 		}
 		return "", fmt.Errorf("failed to get diff: %w", err)
 	}
@@ -551,8 +553,14 @@ func (c *Collector) GetFileStats(stagedOnly bool) ([]FileStat, error) {
 		line := scanner.Text()
 		parts := strings.Fields(line)
 		if len(parts) >= 3 {
-			added, _ := strconv.Atoi(parts[0])
-			removed, _ := strconv.Atoi(parts[1])
+			added, err := strconv.Atoi(parts[0])
+			if err != nil {
+				continue // skip malformed numstat lines
+			}
+			removed, err := strconv.Atoi(parts[1])
+			if err != nil {
+				continue
+			}
 			filename := parts[2]
 
 			stats = append(stats, FileStat{
@@ -632,7 +640,10 @@ func (c *Collector) parseCommitLog(out []byte) []CommitInfo {
 			continue
 		}
 
-		dateUnix, _ := strconv.ParseInt(parts[3], 10, 64)
+		dateUnix, err := strconv.ParseInt(parts[3], 10, 64)
+		if err != nil {
+			continue // skip commits with unparseable timestamps
+		}
 
 		commits = append(commits, CommitInfo{
 			Hash:      parts[0],

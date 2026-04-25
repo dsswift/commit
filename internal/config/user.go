@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/dsswift/commit/internal/assert"
@@ -84,6 +85,14 @@ func LoadUserConfig() (*types.UserConfig, error) {
 		AzureFoundryEndpoint:   env["AZURE_FOUNDRY_ENDPOINT"],
 		AzureFoundryAPIKey:     env["AZURE_FOUNDRY_API_KEY"],
 		AzureFoundryDeployment: env["AZURE_FOUNDRY_DEPLOYMENT"],
+
+		BaseURL: env["COMMIT_BASE_URL"],
+	}
+
+	if v := env["COMMIT_TIMEOUT"]; v != "" {
+		if sec, err := strconv.Atoi(v); err == nil && sec > 0 {
+			config.TimeoutSec = sec
+		}
 	}
 
 	// Validate provider is set
