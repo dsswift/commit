@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.14.2](https://github.com/dsswift/commit/compare/v1.14.1...v1.14.2) (2026-04-25)
+
+
+### Bug Fixes
+
+* add mutex protection for provider factory ([2072555](https://github.com/dsswift/commit/commit/2072555f7c16e9bf19ef63632937c6b719caaa9b))
+
 ### [1.14.1](https://github.com/dsswift/commit/compare/v1.14.0...v1.14.1) (2026-03-27)
 
 
