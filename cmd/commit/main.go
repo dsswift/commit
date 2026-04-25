@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dsswift/commit/internal/analyzer"
@@ -27,7 +28,18 @@ var Version = "dev"
 var BuildTime = ""
 
 // newProviderFunc creates an LLM provider. Overridable for testing.
-var newProviderFunc = llm.NewProvider
+// Tests must hold providerMu when swapping this function.
+var (
+	newProviderFunc = llm.NewProvider
+	providerMu      sync.Mutex
+)
+
+// getProviderFunc returns the current provider factory under lock.
+func getProviderFunc() func(*types.UserConfig) (llm.Provider, error) {
+	providerMu.Lock()
+	defer providerMu.Unlock()
+	return newProviderFunc
+}
 
 func main() {
 	os.Exit(run())
@@ -116,6 +128,11 @@ func run() (exitCode int) {
 	// Start version check in background
 	versionChan := make(chan *updater.VersionInfo, 1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				versionChan <- nil
+			}
+		}()
 		versionChan <- updater.CheckVersion(Version)
 	}()
 
@@ -123,8 +140,14 @@ func run() (exitCode int) {
 	result := execute(flags, logger)
 
 	// Write registry entry
-	cwd, _ := os.Getwd()
-	gitRoot, _ := git.FindGitRoot(cwd)
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = ""
+	}
+	gitRoot, err := git.FindGitRoot(cwd)
+	if err != nil {
+		gitRoot = ""
+	}
 
 	entry := logging.RegistryEntry{
 		ExecutionID:    executionID,
@@ -338,7 +361,7 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 	// Create LLM provider
 	printStep("🤖", "Analyzing changes...")
 
-	provider, err := newProviderFunc(userConfig)
+	provider, err := getProviderFunc()(userConfig)
 	if err != nil {
 		printError("Failed to create LLM provider", err)
 		result.ExitCode = 1
@@ -566,7 +589,7 @@ func handleDiff(flags flags) int {
 	printSuccess(fmt.Sprintf("Provider: %s", userConfig.Provider))
 
 	// Create LLM provider
-	provider, err := newProviderFunc(userConfig)
+	provider, err := getProviderFunc()(userConfig)
 	if err != nil {
 		printError("Failed to create LLM provider", err)
 		return 1

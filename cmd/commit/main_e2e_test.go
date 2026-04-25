@@ -93,11 +93,17 @@ func TestE2E_SmartCommit(t *testing.T) {
 	defer mockServer.Close()
 
 	// Override provider factory to use mock server
+	providerMu.Lock()
 	origFactory := newProviderFunc
 	newProviderFunc = func(config *types.UserConfig) (llm.Provider, error) {
 		return &mockProvider{baseURL: mockServer.URL}, nil
 	}
-	defer func() { newProviderFunc = origFactory }()
+	providerMu.Unlock()
+	defer func() {
+		providerMu.Lock()
+		newProviderFunc = origFactory
+		providerMu.Unlock()
+	}()
 
 	// Set up fake config so LoadUserConfig() succeeds
 	fakeHome := t.TempDir()
@@ -195,8 +201,14 @@ func TestE2E_NoChanges(t *testing.T) {
 	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Override provider factory (should not be called, but save/restore anyway)
+	providerMu.Lock()
 	origFactory := newProviderFunc
-	defer func() { newProviderFunc = origFactory }()
+	providerMu.Unlock()
+	defer func() {
+		providerMu.Lock()
+		newProviderFunc = origFactory
+		providerMu.Unlock()
+	}()
 
 	// Change to temp dir
 	origDir, _ := os.Getwd()
@@ -287,11 +299,17 @@ func TestE2E_StagedOnly(t *testing.T) {
 	defer mockServer.Close()
 
 	// Override provider factory
+	providerMu.Lock()
 	origFactory := newProviderFunc
 	newProviderFunc = func(config *types.UserConfig) (llm.Provider, error) {
 		return &mockProvider{baseURL: mockServer.URL}, nil
 	}
-	defer func() { newProviderFunc = origFactory }()
+	providerMu.Unlock()
+	defer func() {
+		providerMu.Lock()
+		newProviderFunc = origFactory
+		providerMu.Unlock()
+	}()
 
 	// Set up fake config
 	fakeHome := t.TempDir()
@@ -422,11 +440,17 @@ func TestE2E_DryRun(t *testing.T) {
 	defer mockServer.Close()
 
 	// Override provider factory
+	providerMu.Lock()
 	origFactory := newProviderFunc
 	newProviderFunc = func(config *types.UserConfig) (llm.Provider, error) {
 		return &mockProvider{baseURL: mockServer.URL}, nil
 	}
-	defer func() { newProviderFunc = origFactory }()
+	providerMu.Unlock()
+	defer func() {
+		providerMu.Lock()
+		newProviderFunc = origFactory
+		providerMu.Unlock()
+	}()
 
 	// Set up fake config
 	fakeHome := t.TempDir()
@@ -555,11 +579,17 @@ func TestE2E_SingleCommitMode(t *testing.T) {
 	defer mockServer.Close()
 
 	// Override provider factory
+	providerMu.Lock()
 	origFactory := newProviderFunc
 	newProviderFunc = func(config *types.UserConfig) (llm.Provider, error) {
 		return &mockProvider{baseURL: mockServer.URL}, nil
 	}
-	defer func() { newProviderFunc = origFactory }()
+	providerMu.Unlock()
+	defer func() {
+		providerMu.Lock()
+		newProviderFunc = origFactory
+		providerMu.Unlock()
+	}()
 
 	// Set up fake config
 	fakeHome := t.TempDir()
@@ -663,8 +693,14 @@ func TestE2E_ConfigError(t *testing.T) {
 	defer os.Setenv("HOME", origHome) //nolint:errcheck // test cleanup
 
 	// Override provider factory (save/restore but should not be called)
+	providerMu.Lock()
 	origFactory := newProviderFunc
-	defer func() { newProviderFunc = origFactory }()
+	providerMu.Unlock()
+	defer func() {
+		providerMu.Lock()
+		newProviderFunc = origFactory
+		providerMu.Unlock()
+	}()
 
 	// Change to temp dir
 	origDir, _ := os.Getwd()
@@ -960,11 +996,17 @@ func TestE2E_VerboseCommit(t *testing.T) {
 	defer mockServer.Close()
 
 	// Override provider factory to use mock server
+	providerMu.Lock()
 	origFactory := newProviderFunc
 	newProviderFunc = func(config *types.UserConfig) (llm.Provider, error) {
 		return &mockProvider{baseURL: mockServer.URL}, nil
 	}
-	defer func() { newProviderFunc = origFactory }()
+	providerMu.Unlock()
+	defer func() {
+		providerMu.Lock()
+		newProviderFunc = origFactory
+		providerMu.Unlock()
+	}()
 
 	// Set up fake config so LoadUserConfig() succeeds
 	fakeHome := t.TempDir()
@@ -1051,11 +1093,17 @@ func TestE2E_HandleDiff(t *testing.T) {
 	}
 
 	// Override provider factory to use mock
+	providerMu.Lock()
 	origFactory := newProviderFunc
 	newProviderFunc = func(config *types.UserConfig) (llm.Provider, error) {
 		return &mockProvider{}, nil
 	}
-	defer func() { newProviderFunc = origFactory }()
+	providerMu.Unlock()
+	defer func() {
+		providerMu.Lock()
+		newProviderFunc = origFactory
+		providerMu.Unlock()
+	}()
 
 	// Set up fake config so LoadUserConfig() succeeds
 	fakeHome := t.TempDir()
