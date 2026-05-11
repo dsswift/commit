@@ -48,6 +48,7 @@ type flags struct {
 	diffTo      string
 	provider    string
 	setConfig   string
+	message     string
 }
 
 func parseFlags() flags {
@@ -71,6 +72,8 @@ func parseFlags() flags {
 	flag.BoolVar(&f.single, "1", false, "Create a single commit for all files (shorthand)")
 	flag.BoolVar(&f.smart, "smart", false, "Create semantic commits (default)")
 	flag.StringVar(&f.setConfig, "set", "", "Set config value (e.g., defaultMode=single)")
+	flag.StringVar(&f.message, "m", "", "Guiding message to provide context for commit generation")
+	flag.StringVar(&f.message, "message", "", "Guiding message to provide context for commit generation")
 
 	flag.Parse()
 

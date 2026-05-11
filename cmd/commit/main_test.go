@@ -275,3 +275,39 @@ func TestParseFlags_WithFlags(t *testing.T) {
 		t.Error("version should be true")
 	}
 }
+
+func TestParseFlags_WithMessage(t *testing.T) {
+	oldArgs := os.Args
+	oldCommandLine := flag.CommandLine
+	defer func() {
+		os.Args = oldArgs
+		flag.CommandLine = oldCommandLine
+	}()
+
+	flag.CommandLine = flag.NewFlagSet("commit", flag.ContinueOnError)
+	os.Args = []string{"commit", "-m", "fix: contract mismatch"}
+
+	f := parseFlags()
+
+	if f.message != "fix: contract mismatch" {
+		t.Errorf("message should be 'fix: contract mismatch', got %q", f.message)
+	}
+}
+
+func TestParseFlags_WithLongMessage(t *testing.T) {
+	oldArgs := os.Args
+	oldCommandLine := flag.CommandLine
+	defer func() {
+		os.Args = oldArgs
+		flag.CommandLine = oldCommandLine
+	}()
+
+	flag.CommandLine = flag.NewFlagSet("commit", flag.ContinueOnError)
+	os.Args = []string{"commit", "--message", "fix: fixed contract mismatch between engine and desktop"}
+
+	f := parseFlags()
+
+	if f.message != "fix: fixed contract mismatch between engine and desktop" {
+		t.Errorf("message should be 'fix: fixed contract mismatch between engine and desktop', got %q", f.message)
+	}
+}

@@ -344,6 +344,7 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 		singleMode = false
 	}
 	analysisReq.SingleCommit = singleMode
+	analysisReq.GuidingMessage = flags.message
 
 	// Log context built
 	if logger != nil {
