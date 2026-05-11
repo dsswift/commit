@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.15.0](https://github.com/dsswift/commit/compare/v1.14.2...v1.15.0) (2026-05-11)
+
+
+### Features
+
+* add guiding message support to llm provider ([9621b4b](https://github.com/dsswift/commit/commit/9621b4b5578122c739fe5d916061837d67a835db))
+* add message flag for commit context ([04387a6](https://github.com/dsswift/commit/commit/04387a6400f97c21ce0c844e420194a30d8cc193))
+
 ### [1.14.2](https://github.com/dsswift/commit/compare/v1.14.1...v1.14.2) (2026-04-25)
 
 
