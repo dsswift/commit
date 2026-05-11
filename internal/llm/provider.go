@@ -111,6 +111,9 @@ The allowed types list is ABSOLUTE. If your natural choice is not in the list, s
   any other → chore (chore is the general fallback)
 When substituting, preserve intent in the commit message so the change is clear.
 
+USER CONTEXT:
+17. A user-provided context message may be included below. Use it for high-level intent (commit type, theme, purpose) but still apply all other rules for splitting, scoping, and type selection.
+
 GROUPING:
 8. Each commit should represent a single logical change
 9. Group related file changes together
@@ -164,6 +167,11 @@ Example responses:
 		singleCommitRule = "\n- IMPORTANT: Create exactly ONE commit containing ALL files"
 	}
 
+	guidingMessageRule := ""
+	if req.GuidingMessage != "" {
+		guidingMessageRule = fmt.Sprintf("\n- USER CONTEXT: The developer describes this change as: %q. Use this to guide commit type selection and message wording, but still split into multiple commits by scope/concern as appropriate.", req.GuidingMessage)
+	}
+
 	user = fmt.Sprintf(`Analyze these changes and create semantic commits:
 
 FILES (path [status] diff_summary → assigned_scope):
@@ -179,7 +187,7 @@ RULES:
 - ALLOWED TYPES (use ONLY these, substituting per rules above): %s
 - Max message length: %d characters
 - Has scopes: %v
-- Behavioral test: %s%s
+- Behavioral test: %s%s%s
 
 Return JSON only, no markdown code blocks.`,
 		formatFiles(req.Files),
@@ -190,6 +198,7 @@ Return JSON only, no markdown code blocks.`,
 		req.HasScopes,
 		req.Rules.BehavioralTest,
 		singleCommitRule,
+		guidingMessageRule,
 	)
 
 	return system, user

@@ -418,3 +418,52 @@ type testError struct {
 func (e *testError) Error() string {
 	return e.msg
 }
+
+func TestBuildPrompt_WithGuidingMessage(t *testing.T) {
+	req := &types.AnalysisRequest{
+		Files: []types.FileChange{
+			{Path: "file1.go", Status: "modified"},
+		},
+		Diff:           "diff",
+		HasScopes:      false,
+		GuidingMessage: "fix: fixed contract mismatch between engine and desktop",
+		Rules: types.CommitRules{
+			Types:            []string{"feat", "fix"},
+			MaxMessageLength: 50,
+		},
+	}
+
+	system, user := BuildPrompt(req)
+
+	if !testutil.ContainsString(user, "USER CONTEXT") {
+		t.Error("user prompt should contain USER CONTEXT when GuidingMessage is set")
+	}
+
+	if !testutil.ContainsString(user, "fixed contract mismatch between engine and desktop") {
+		t.Error("user prompt should contain the guiding message text")
+	}
+
+	if !testutil.ContainsString(system, "user-provided context message") {
+		t.Error("system prompt should mention user-provided context message")
+	}
+}
+
+func TestBuildPrompt_WithoutGuidingMessage(t *testing.T) {
+	req := &types.AnalysisRequest{
+		Files: []types.FileChange{
+			{Path: "file1.go", Status: "modified"},
+		},
+		Diff:      "diff",
+		HasScopes: false,
+		Rules: types.CommitRules{
+			Types:            []string{"feat", "fix"},
+			MaxMessageLength: 50,
+		},
+	}
+
+	_, user := BuildPrompt(req)
+
+	if testutil.ContainsString(user, "USER CONTEXT") {
+		t.Error("user prompt should NOT contain USER CONTEXT when GuidingMessage is empty")
+	}
+}

@@ -13,12 +13,13 @@ type FileChange struct {
 
 // AnalysisRequest is the structured request sent to the LLM.
 type AnalysisRequest struct {
-	Files         []FileChange `json:"files"`
-	Diff          string       `json:"diff"`
-	RecentCommits []string     `json:"recentCommits"`
-	HasScopes     bool         `json:"hasScopes"`
-	SingleCommit  bool         `json:"singleCommit"`
-	Rules         CommitRules  `json:"rules"`
+	Files          []FileChange `json:"files"`
+	Diff           string       `json:"diff"`
+	RecentCommits  []string     `json:"recentCommits"`
+	HasScopes      bool         `json:"hasScopes"`
+	SingleCommit   bool         `json:"singleCommit"`
+	GuidingMessage string       `json:"guidingMessage,omitempty"`
+	Rules          CommitRules  `json:"rules"`
 }
 
 // CommitRules defines constraints for commit messages.
