@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.16.0](https://github.com/dsswift/commit/compare/v1.15.0...v1.16.0) (2026-05-31)
+
+
+### Features
+
+* add retry logic for git index lock conflicts ([5abb1ef](https://github.com/dsswift/commit/commit/5abb1ef1692b88b470edacf9f24896a2fcf4e171))
+
 ## [1.15.0](https://github.com/dsswift/commit/compare/v1.14.2...v1.15.0) (2026-05-11)
 
 
