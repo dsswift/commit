@@ -105,19 +105,25 @@ func (s *Stager) StageFiles(files []string) error {
 	}
 
 	if len(regularFiles) > 0 {
-		args := append([]string{"add", "--"}, regularFiles...)
-		cmd := exec.Command("git", args...)
-		cmd.Dir = s.workDir
-		if out, err := cmd.CombinedOutput(); err != nil {
+		out, err := retryOnLock(func() ([]byte, error) {
+			args := append([]string{"add", "--"}, regularFiles...)
+			cmd := exec.Command("git", args...)
+			cmd.Dir = s.workDir
+			return cmd.CombinedOutput()
+		})
+		if err != nil {
 			return fmt.Errorf("failed to stage files: %s: %w", string(out), err)
 		}
 	}
 
 	if len(forceFiles) > 0 {
-		args := append([]string{"add", "-f", "--"}, forceFiles...)
-		cmd := exec.Command("git", args...)
-		cmd.Dir = s.workDir
-		if out, err := cmd.CombinedOutput(); err != nil {
+		out, err := retryOnLock(func() ([]byte, error) {
+			args := append([]string{"add", "-f", "--"}, forceFiles...)
+			cmd := exec.Command("git", args...)
+			cmd.Dir = s.workDir
+			return cmd.CombinedOutput()
+		})
+		if err != nil {
 			return fmt.Errorf("failed to stage tracked-but-ignored files: %s: %w", string(out), err)
 		}
 	}
@@ -197,16 +203,18 @@ func (s *Stager) UnstageAll() error {
 	checkHead.Dir = s.workDir
 	hasHead := checkHead.Run() == nil
 
-	var cmd *exec.Cmd
-	if hasHead {
-		cmd = exec.Command("git", "reset", "HEAD")
-	} else {
-		// No commits yet - use rm --cached to unstage
-		cmd = exec.Command("git", "rm", "--cached", "-r", "--ignore-unmatch", ".")
-	}
-	cmd.Dir = s.workDir
-
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := retryOnLock(func() ([]byte, error) {
+		var cmd *exec.Cmd
+		if hasHead {
+			cmd = exec.Command("git", "reset", "HEAD")
+		} else {
+			// No commits yet - use rm --cached to unstage
+			cmd = exec.Command("git", "rm", "--cached", "-r", "--ignore-unmatch", ".")
+		}
+		cmd.Dir = s.workDir
+		return cmd.CombinedOutput()
+	})
+	if err != nil {
 		// Ignore common non-error messages
 		outStr := string(out)
 		if strings.Contains(outStr, "Unstaged changes after reset") ||

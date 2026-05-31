@@ -35,10 +35,11 @@ func (c *Committer) Commit(message string) (string, error) {
 	assert.True(hasStaged, "no staged changes to commit")
 
 	// EXECUTION
-	cmd := exec.Command("git", "commit", "-m", message)
-	cmd.Dir = c.workDir
-
-	out, err := cmd.CombinedOutput()
+	out, err := retryOnLock(func() ([]byte, error) {
+		cmd := exec.Command("git", "commit", "-m", message)
+		cmd.Dir = c.workDir
+		return cmd.CombinedOutput()
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to commit: %s: %w", string(out), err)
 	}
