@@ -16,19 +16,26 @@ type Validator struct {
 	workDir    string
 	repoConfig *types.RepoConfig
 	knownFiles map[string]bool
+	fileOrder  []string
 }
 
 // NewValidator creates a new validator.
 func NewValidator(workDir string, repoConfig *types.RepoConfig, knownFiles []string) *Validator {
 	fileMap := make(map[string]bool)
+	order := make([]string, 0, len(knownFiles))
 	for _, f := range knownFiles {
+		if fileMap[f] {
+			continue
+		}
 		fileMap[f] = true
+		order = append(order, f)
 	}
 
 	return &Validator{
 		workDir:    workDir,
 		repoConfig: repoConfig,
 		knownFiles: fileMap,
+		fileOrder:  order,
 	}
 }
 
@@ -44,8 +51,11 @@ func (e *ValidationError) Error() string {
 
 // ValidationResult contains the outcome of plan validation.
 type ValidationResult struct {
-	Valid  bool
-	Errors []ValidationError
+	Valid bool
+	// Recovered lists files the LLM omitted from the plan that were
+	// reassigned to a commit so no change is left behind.
+	Recovered []string
+	Errors    []ValidationError
 }
 
 // Validate checks if a commit plan is valid.
@@ -178,10 +188,77 @@ func (v *Validator) ValidateAndFix(plan *types.CommitPlan) (*types.CommitPlan, *
 	// Merge commits that share files
 	fixedPlan.Commits = v.mergeOverlappingCommits(fixedPlan.Commits)
 
+	// Reassign any files the LLM left out
+	recovered := v.ensureFullCoverage(fixedPlan)
+
 	// Validate the fixed plan
 	result := v.Validate(fixedPlan)
+	result.Recovered = recovered
 
 	return fixedPlan, result
+}
+
+// ensureFullCoverage adds any known file missing from the plan to the commit
+// whose files share the longest path prefix with it. LLMs routinely omit
+// deletions, which would otherwise leave those changes uncommitted.
+func (v *Validator) ensureFullCoverage(plan *types.CommitPlan) []string {
+	if len(plan.Commits) == 0 {
+		return nil
+	}
+
+	planned := make(map[string]bool)
+	for _, commit := range plan.Commits {
+		for _, file := range commit.Files {
+			planned[file] = true
+		}
+	}
+
+	var recovered []string
+	for _, file := range v.fileOrder {
+		if planned[file] {
+			continue
+		}
+		target := v.bestCommitFor(file, plan.Commits)
+		plan.Commits[target].Files = append(plan.Commits[target].Files, file)
+		planned[file] = true
+		recovered = append(recovered, file)
+	}
+
+	return recovered
+}
+
+// bestCommitFor returns the index of the commit that best matches a file,
+// scored by the longest shared directory prefix with that commit's files.
+func (v *Validator) bestCommitFor(file string, commits []types.PlannedCommit) int {
+	best, bestScore := 0, -1
+
+	for i, commit := range commits {
+		for _, candidate := range commit.Files {
+			if score := sharedDirDepth(file, candidate); score > bestScore {
+				best, bestScore = i, score
+			}
+		}
+	}
+
+	return best
+}
+
+// sharedDirDepth counts the leading directory components two paths have in common.
+func sharedDirDepth(a, b string) int {
+	aParts := strings.Split(filepath.Dir(a), string(filepath.Separator))
+	bParts := strings.Split(filepath.Dir(b), string(filepath.Separator))
+
+	depth := 0
+	for depth < len(aParts) && depth < len(bParts) && aParts[depth] == bParts[depth] {
+		depth++
+	}
+
+	// filepath.Dir returns "." for root-level files, which shares nothing.
+	if depth == 1 && aParts[0] == "." {
+		return 0
+	}
+
+	return depth
 }
 
 // mergeOverlappingCommits merges commits that share files into single commits.

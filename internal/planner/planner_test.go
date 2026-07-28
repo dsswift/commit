@@ -541,3 +541,77 @@ type testError struct {
 func (e *testError) Error() string {
 	return e.msg
 }
+
+func TestValidator_ValidateAndFix_RecoversOmittedDeletions(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "planner-test-*")
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+
+	config := &types.RepoConfig{
+		CommitTypes: types.CommitTypeConfig{
+			Mode:  "whitelist",
+			Types: []string{"feat", "docs"},
+		},
+	}
+
+	knownFiles := []string{
+		"docs/plans/applied/a.md",
+		"docs/plans/drafts/a.md",
+		"src/api/handler.go",
+	}
+	validator := NewValidator(tmpDir, config, knownFiles)
+
+	plan := &types.CommitPlan{
+		Commits: []types.PlannedCommit{
+			{Type: "docs", Message: "apply plan a", Files: []string{"docs/plans/applied/a.md"}},
+			{Type: "feat", Message: "add handler", Files: []string{"src/api/handler.go"}},
+		},
+	}
+
+	fixed, result := validator.ValidateAndFix(plan)
+
+	if !result.Valid {
+		t.Fatalf("expected valid plan, got errors: %v", result.Errors)
+	}
+
+	if len(result.Recovered) != 1 || result.Recovered[0] != "docs/plans/drafts/a.md" {
+		t.Fatalf("expected drafts/a.md to be recovered, got %v", result.Recovered)
+	}
+
+	var found bool
+	for _, c := range fixed.Commits {
+		for _, f := range c.Files {
+			if f != "docs/plans/drafts/a.md" {
+				continue
+			}
+			found = true
+			if c.Message != "apply plan a" {
+				t.Errorf("expected deletion grouped with nearest path, landed in %q", c.Message)
+			}
+		}
+	}
+	if !found {
+		t.Error("deleted file missing from fixed plan")
+	}
+}
+
+func TestValidator_ValidateAndFix_NoRecoveryWhenComplete(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "planner-test-*")
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // test cleanup
+
+	config := &types.RepoConfig{
+		CommitTypes: types.CommitTypeConfig{Mode: "whitelist", Types: []string{"feat"}},
+	}
+	validator := NewValidator(tmpDir, config, []string{"a.go"})
+
+	plan := &types.CommitPlan{
+		Commits: []types.PlannedCommit{
+			{Type: "feat", Message: "add a", Files: []string{"a.go"}},
+		},
+	}
+
+	_, result := validator.ValidateAndFix(plan)
+
+	if len(result.Recovered) != 0 {
+		t.Errorf("expected no recovery, got %v", result.Recovered)
+	}
+}

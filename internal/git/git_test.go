@@ -310,6 +310,40 @@ func TestStager_StageFiles(t *testing.T) {
 	}
 }
 
+func TestStager_StageFiles_SymlinkReplacedByDirectory(t *testing.T) {
+	repoDir := testutil.TestRepo(t)
+
+	testutil.CreateFile(t, repoDir, "real/a.md", "content")
+	if err := os.MkdirAll(filepath.Join(repoDir, "themes"), 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	if err := os.Symlink("../real", filepath.Join(repoDir, "themes/link")); err != nil {
+		t.Fatalf("symlink failed: %v", err)
+	}
+	testutil.GitAdd(t, repoDir, ".")
+	testutil.GitCommit(t, repoDir, "initial")
+
+	// Replace the tracked symlink with a directory whose contents are ignored.
+	if err := os.Remove(filepath.Join(repoDir, "themes/link")); err != nil {
+		t.Fatalf("remove symlink failed: %v", err)
+	}
+	testutil.CreateFile(t, repoDir, "themes/link/b.md", "ignored")
+	testutil.CreateFile(t, repoDir, ".gitignore", "themes/link/\n")
+
+	stager := NewStager(repoDir)
+	if err := stager.StageFiles([]string{"themes/link"}); err != nil {
+		t.Fatalf("StageFiles failed: %v", err)
+	}
+
+	staged, err := stager.StagedFiles()
+	if err != nil {
+		t.Fatalf("StagedFiles failed: %v", err)
+	}
+	if !testutil.ContainsString(strings.Join(staged, "\n"), "themes/link") {
+		t.Errorf("expected symlink deletion staged, got %v", staged)
+	}
+}
+
 func TestStager_UnstageAll(t *testing.T) {
 	repoDir := testutil.TestRepo(t)
 

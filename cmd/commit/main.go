@@ -303,7 +303,16 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 
 	modified := len(status.Modified)
 	added := len(status.Added) + len(status.Untracked)
-	printSuccess(fmt.Sprintf("Found %d files (%d modified, %d new)", len(files), modified, added))
+	deleted := len(status.Deleted)
+	renamed := len(status.Renamed)
+	summary := fmt.Sprintf("%d modified, %d new", modified, added)
+	if deleted > 0 {
+		summary += fmt.Sprintf(", %d deleted", deleted)
+	}
+	if renamed > 0 {
+		summary += fmt.Sprintf(", %d renamed", renamed)
+	}
+	printSuccess(fmt.Sprintf("Found %d files (%s)", len(files), summary))
 
 	if flags.verbose {
 		for _, f := range files {
@@ -426,6 +435,10 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 		result.ExitCode = 1
 		result.Duration = time.Since(startTime)
 		return result
+	}
+
+	if len(validationResult.Recovered) > 0 {
+		printWarning(fmt.Sprintf("Recovered %d files omitted by the model: %v", len(validationResult.Recovered), validationResult.Recovered))
 	}
 
 	// Filter sensitive files

@@ -117,6 +117,8 @@ USER CONTEXT:
 GROUPING:
 8. Each commit should represent a single logical change
 9. Group related file changes together
+9a. COVERAGE IS MANDATORY: every path in the FILES list must appear in exactly one commit. This includes files marked [deleted] and [renamed]. Never omit a file because its diff is absent, truncated, or empty.
+9b. When a file is deleted and a similar file is added, put both paths in the same commit so the change reads as a move.
 
 SCOPE:
 10. The scope after → is the pre-computed MOST SPECIFIC scope for each file - use it exactly as shown

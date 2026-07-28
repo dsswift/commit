@@ -58,6 +58,13 @@ func (s *Stager) StageFiles(files []string) error {
 		} else if err != nil {
 			return fmt.Errorf("failed to stat file %s: %w", f, err)
 		} else if info.IsDir() {
+			// A directory on disk can still have its own index entry when the
+			// tracked object was a symlink or file that got replaced by a
+			// directory. git reports that as a deletion, so stage the path
+			// itself or the deletion is silently dropped.
+			if s.hasExactIndexEntry(f) {
+				filesToStage = append(filesToStage, f)
+			}
 			// Expand directory to all files within it
 			dirFiles, err := s.expandDirectory(f)
 			if err != nil {
@@ -286,6 +293,27 @@ func (s *Stager) isTrackedFile(file string) bool {
 	}
 
 	return strings.TrimSpace(string(out)) != ""
+}
+
+// hasExactIndexEntry reports whether the index holds an entry at exactly this
+// path, as opposed to entries beneath it. A tracked directory yields child
+// paths; a tracked file or symlink yields the path itself.
+func (s *Stager) hasExactIndexEntry(path string) bool {
+	cmd := exec.Command("git", "ls-files", "--", path)
+	cmd.Dir = s.workDir
+
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.TrimSpace(line) == path {
+			return true
+		}
+	}
+
+	return false
 }
 
 // fullPath returns the full path of a file relative to the work directory.
