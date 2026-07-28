@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.17.0](https://github.com/dsswift/commit/compare/v1.16.0...v1.17.0) (2026-07-28)
+
+
+### Features
+
+* add validation recovery for omitted files ([fc13473](https://github.com/dsswift/commit/commit/fc13473b554221cf3a22944caad3ce09966765c0))
+
 ## [1.16.0](https://github.com/dsswift/commit/compare/v1.15.0...v1.16.0) (2026-05-31)
 
 
