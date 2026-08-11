@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.18.0](https://github.com/dsswift/commit/compare/v1.17.0...v1.18.0) (2026-08-11)
+
+
+### Features
+
+* support gpt-5 token parameters in chat requests ([cd91834](https://github.com/dsswift/commit/commit/cd91834e58948f42805582d5965b0b750c46ab4d))
+
 ## [1.17.0](https://github.com/dsswift/commit/compare/v1.16.0...v1.17.0) (2026-07-28)
 
 
