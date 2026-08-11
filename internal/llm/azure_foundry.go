@@ -153,14 +153,13 @@ func (p *AzureFoundryProvider) callAnthropicAPI(ctx context.Context, system, use
 
 // callOpenAIAPI makes a request using the OpenAI-compatible API format.
 func (p *AzureFoundryProvider) callOpenAIAPI(ctx context.Context, system, user string) (string, error) {
-	requestBody := chatRequest{
-		Messages: []chatMessage{
-			{Role: "system", Content: system},
-			{Role: "user", Content: user},
-		},
-		Temperature: 0.3,
-		MaxTokens:   8192,
-	}
+	// The deployment name carries the model identity for Azure; the model field
+	// stays out of the body since the URL already targets the deployment.
+	requestBody := newChatRequest(p.deployment+" "+p.model, []chatMessage{
+		{Role: "system", Content: system},
+		{Role: "user", Content: user},
+	})
+	requestBody.Model = ""
 
 	url := fmt.Sprintf("%s/openai/deployments/%s/chat/completions?api-version=%s",
 		p.endpoint, p.deployment, azureOpenAIAPIVersion)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/dsswift/commit/pkg/types"
 )
@@ -11,10 +12,44 @@ import (
 // OpenAI-compatible API types shared by openai, grok, and azure_foundry (OpenAI mode).
 
 type chatRequest struct {
-	Model       string        `json:"model,omitempty"`
-	Messages    []chatMessage `json:"messages"`
-	Temperature float64       `json:"temperature,omitempty"`
-	MaxTokens   int           `json:"max_tokens,omitempty"`
+	Model               string        `json:"model,omitempty"`
+	Messages            []chatMessage `json:"messages"`
+	Temperature         float64       `json:"temperature,omitempty"`
+	MaxTokens           int           `json:"max_tokens,omitempty"`
+	MaxCompletionTokens int           `json:"max_completion_tokens,omitempty"`
+}
+
+const defaultMaxTokens = 8192
+
+// usesCompletionTokens reports whether a model requires max_completion_tokens
+// instead of max_tokens. GPT-5+ and the o-series reasoning models reject
+// max_tokens (and any temperature other than the default). The argument may hold
+// several space-separated candidate names (e.g. Azure deployment plus model).
+func usesCompletionTokens(model string) bool {
+	for _, name := range strings.Fields(strings.ToLower(model)) {
+		if strings.HasPrefix(name, "o1") || strings.HasPrefix(name, "o3") || strings.HasPrefix(name, "o4") {
+			return true
+		}
+		for _, prefix := range []string{"gpt-5", "gpt5", "gpt-6", "gpt6"} {
+			if strings.Contains(name, prefix) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// newChatRequest builds a chat completion request with the token-limit parameter
+// the model accepts.
+func newChatRequest(model string, messages []chatMessage) chatRequest {
+	req := chatRequest{Model: model, Messages: messages}
+	if usesCompletionTokens(model) {
+		req.MaxCompletionTokens = defaultMaxTokens
+		return req
+	}
+	req.Temperature = 0.3
+	req.MaxTokens = defaultMaxTokens
+	return req
 }
 
 type chatMessage struct {
@@ -52,15 +87,10 @@ type llmRequestParams struct {
 func analyzeChatCompletion(ctx context.Context, params llmRequestParams, req *types.AnalysisRequest) (*types.CommitPlan, error) {
 	systemPrompt, userPrompt := BuildPrompt(req)
 
-	requestBody := chatRequest{
-		Model: params.model,
-		Messages: []chatMessage{
-			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: userPrompt},
-		},
-		Temperature: 0.3,
-		MaxTokens:   8192,
-	}
+	requestBody := newChatRequest(params.model, []chatMessage{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userPrompt},
+	})
 
 	resp, err := doRequest(&llmRequest{
 		ctx:      ctx,
@@ -100,15 +130,10 @@ func analyzeChatCompletion(ctx context.Context, params llmRequestParams, req *ty
 
 // analyzeDiffChatCompletion sends a diff analysis request using the OpenAI-compatible chat format.
 func analyzeDiffChatCompletion(ctx context.Context, params llmRequestParams, system, user string) (string, error) {
-	requestBody := chatRequest{
-		Model: params.model,
-		Messages: []chatMessage{
-			{Role: "system", Content: system},
-			{Role: "user", Content: user},
-		},
-		Temperature: 0.3,
-		MaxTokens:   8192,
-	}
+	requestBody := newChatRequest(params.model, []chatMessage{
+		{Role: "system", Content: system},
+		{Role: "user", Content: user},
+	})
 
 	resp, err := doRequest(&llmRequest{
 		ctx:      ctx,
