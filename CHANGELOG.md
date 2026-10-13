@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.18.1](https://github.com/dsswift/commit/compare/v1.18.0...v1.18.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* split a planned commit that spans scopes ([46f47c6](https://github.com/dsswift/commit/commit/46f47c6746c8d601228810ae0f272d0852bcf7fb))
+
 ## [1.18.0](https://github.com/dsswift/commit/compare/v1.17.0...v1.18.0) (2026-08-11)
 
 
