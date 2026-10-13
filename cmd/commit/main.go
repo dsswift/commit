@@ -416,7 +416,9 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 	printStep("📋", "Planning commits...")
 
 	validator := planner.NewValidator(gitRoot, repoConfig, files)
-	plan, validationResult := validator.ValidateAndFix(plan)
+	// Only an explicit --single keeps a commit that spans scopes. A default
+	// mode of single still asks the model for one commit, then gets one per scope.
+	plan, validationResult := validator.ValidateAndFix(plan, flags.single)
 
 	// Log validation
 	if logger != nil {
@@ -439,6 +441,10 @@ func execute(flags flags, logger *logging.ExecutionLogger) executeResult {
 
 	if len(validationResult.Recovered) > 0 {
 		printWarning(fmt.Sprintf("Recovered %d files omitted by the model: %v", len(validationResult.Recovered), validationResult.Recovered))
+	}
+
+	if len(validationResult.Split) > 0 {
+		printWarning(fmt.Sprintf("Split %d commits that mixed scopes: %v", len(validationResult.Split), validationResult.Split))
 	}
 
 	// Filter sensitive files

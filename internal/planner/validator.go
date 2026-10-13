@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/dsswift/commit/internal/assert"
+	"github.com/dsswift/commit/internal/config"
 	"github.com/dsswift/commit/pkg/types"
 )
 
@@ -55,7 +56,10 @@ type ValidationResult struct {
 	// Recovered lists files the LLM omitted from the plan that were
 	// reassigned to a commit so no change is left behind.
 	Recovered []string
-	Errors    []ValidationError
+	// Split lists the planned commits that held files of more than one
+	// scope and were split into one commit per scope.
+	Split  []string
+	Errors []ValidationError
 }
 
 // Validate checks if a commit plan is valid.
@@ -163,7 +167,11 @@ func (v *Validator) Validate(plan *types.CommitPlan) *ValidationResult {
 
 // ValidateAndFix attempts to fix minor validation issues.
 // Returns the fixed plan and any remaining errors.
-func (v *Validator) ValidateAndFix(plan *types.CommitPlan) (*types.CommitPlan, *ValidationResult) {
+//
+// Unless keepMixed is set, a commit holding files of more than one scope is
+// split into one commit per scope: the release pipeline reads the version
+// bump from each commit's scope, so a commit must never span two.
+func (v *Validator) ValidateAndFix(plan *types.CommitPlan, keepMixed bool) (*types.CommitPlan, *ValidationResult) {
 	if plan == nil {
 		return nil, &ValidationResult{
 			Valid:  false,
@@ -191,11 +199,60 @@ func (v *Validator) ValidateAndFix(plan *types.CommitPlan) (*types.CommitPlan, *
 	// Reassign any files the LLM left out
 	recovered := v.ensureFullCoverage(fixedPlan)
 
+	// One scope per commit
+	var split []string
+	if !keepMixed {
+		fixedPlan.Commits, split = v.splitByScope(fixedPlan.Commits)
+	}
+
 	// Validate the fixed plan
 	result := v.Validate(fixedPlan)
 	result.Recovered = recovered
+	result.Split = split
 
 	return fixedPlan, result
+}
+
+// splitByScope splits every commit whose files resolve to more than one
+// scope into one commit per scope, in the order the scopes first appear, each
+// keeping the commit's type and message under its own scope. A commit whose
+// files share one scope keeps that scope, so a scope the LLM got wrong is
+// corrected too. Without configured scopes nothing changes.
+func (v *Validator) splitByScope(commits []types.PlannedCommit) ([]types.PlannedCommit, []string) {
+	if v.repoConfig == nil || len(v.repoConfig.Scopes) == 0 {
+		return commits, nil
+	}
+
+	var out []types.PlannedCommit
+	var split []string
+	for _, commit := range commits {
+		var order []string
+		byScope := make(map[string][]string)
+		for _, file := range commit.Files {
+			scope := config.ResolveScope(file, v.repoConfig)
+			if _, seen := byScope[scope]; !seen {
+				order = append(order, scope)
+			}
+			byScope[scope] = append(byScope[scope], file)
+		}
+
+		if len(order) > 1 {
+			split = append(split, fmt.Sprintf("%s: %s", commit.Message, strings.Join(order, ", ")))
+		}
+		for _, scope := range order {
+			part := commit
+			part.Files = byScope[scope]
+			if scope == "" {
+				part.Scope = nil
+			} else {
+				s := scope
+				part.Scope = &s
+			}
+			out = append(out, part)
+		}
+	}
+
+	return out, split
 }
 
 // ensureFullCoverage adds any known file missing from the plan to the commit

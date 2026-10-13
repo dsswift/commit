@@ -3,6 +3,7 @@ package planner
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/dsswift/commit/internal/testutil"
@@ -265,7 +266,7 @@ func TestValidateAndFix_TruncatesLongMessage(t *testing.T) {
 		},
 	}
 
-	fixedPlan, result := validator.ValidateAndFix(plan)
+	fixedPlan, result := validator.ValidateAndFix(plan, false)
 
 	if fixedPlan == nil {
 		t.Fatal("expected non-nil fixed plan")
@@ -306,7 +307,7 @@ func TestValidateAndFix_MergesOverlappingCommits(t *testing.T) {
 		},
 	}
 
-	fixedPlan, result := validator.ValidateAndFix(plan)
+	fixedPlan, result := validator.ValidateAndFix(plan, false)
 
 	if fixedPlan == nil {
 		t.Fatal("expected non-nil fixed plan")
@@ -567,7 +568,7 @@ func TestValidator_ValidateAndFix_RecoversOmittedDeletions(t *testing.T) {
 		},
 	}
 
-	fixed, result := validator.ValidateAndFix(plan)
+	fixed, result := validator.ValidateAndFix(plan, false)
 
 	if !result.Valid {
 		t.Fatalf("expected valid plan, got errors: %v", result.Errors)
@@ -609,9 +610,75 @@ func TestValidator_ValidateAndFix_NoRecoveryWhenComplete(t *testing.T) {
 		},
 	}
 
-	_, result := validator.ValidateAndFix(plan)
+	_, result := validator.ValidateAndFix(plan, false)
 
 	if len(result.Recovered) != 0 {
 		t.Errorf("expected no recovery, got %v", result.Recovered)
+	}
+}
+
+// scopedConfig resolves workloads/api/ to api and infra/ to infra, the way
+// LoadRepoConfig leaves a loaded .commit.json.
+func scopedConfig() *types.RepoConfig {
+	return &types.RepoConfig{Scopes: []types.ScopeConfig{{Path: "workloads/api/", Scope: "api"}, {Path: "infra/", Scope: "infra"}}}
+}
+
+func TestValidateAndFix_SplitsMixedScopes(t *testing.T) {
+	infra := "infra"
+	files := []string{"infra/main.tf", "workloads/api/README.md", "infra/vars.tf"}
+	validator := NewValidator(".", scopedConfig(), files)
+
+	// The model planned one commit across two scopes, as it did for a
+	// Terraform file and a workload README.
+	plan := &types.CommitPlan{Commits: []types.PlannedCommit{
+		{Type: "feat", Scope: &infra, Message: "preauthorize cli scopes", Files: files},
+	}}
+
+	fixed, result := validator.ValidateAndFix(plan, false)
+
+	if len(fixed.Commits) != 2 {
+		t.Fatalf("expected one commit per scope, got %d: %+v", len(fixed.Commits), fixed.Commits)
+	}
+	for i, want := range []struct {
+		scope string
+		files []string
+	}{{"infra", []string{"infra/main.tf", "infra/vars.tf"}}, {"api", []string{"workloads/api/README.md"}}} {
+		got := fixed.Commits[i]
+		if got.Scope == nil || *got.Scope != want.scope {
+			t.Errorf("commit %d: scope %v, want %s", i, got.Scope, want.scope)
+		}
+		if strings.Join(got.Files, ",") != strings.Join(want.files, ",") {
+			t.Errorf("commit %d: files %v, want %v", i, got.Files, want.files)
+		}
+		if got.Type != "feat" || got.Message != "preauthorize cli scopes" {
+			t.Errorf("commit %d: type and message not kept: %+v", i, got)
+		}
+	}
+	if len(result.Split) != 1 {
+		t.Errorf("expected the split reported once, got %v", result.Split)
+	}
+}
+
+func TestValidateAndFix_SingleKeepsMixedScopes(t *testing.T) {
+	files := []string{"infra/main.tf", "workloads/api/README.md"}
+	validator := NewValidator(".", scopedConfig(), files)
+	plan := &types.CommitPlan{Commits: []types.PlannedCommit{{Type: "chore", Message: "one commit", Files: files}}}
+
+	fixed, result := validator.ValidateAndFix(plan, true)
+
+	if len(fixed.Commits) != 1 || len(result.Split) != 0 {
+		t.Errorf("--single must keep one commit, got %d commits, split %v", len(fixed.Commits), result.Split)
+	}
+}
+
+func TestValidateAndFix_CorrectsWrongScope(t *testing.T) {
+	infra := "infra"
+	validator := NewValidator(".", scopedConfig(), []string{"workloads/api/a.cs"})
+	plan := &types.CommitPlan{Commits: []types.PlannedCommit{{Type: "fix", Scope: &infra, Message: "fix api", Files: []string{"workloads/api/a.cs"}}}}
+
+	fixed, _ := validator.ValidateAndFix(plan, false)
+
+	if fixed.Commits[0].Scope == nil || *fixed.Commits[0].Scope != "api" {
+		t.Errorf("expected the file's own scope, got %v", fixed.Commits[0].Scope)
 	}
 }

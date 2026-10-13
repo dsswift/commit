@@ -31,7 +31,7 @@ func BenchmarkValidateAndFix(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		validator.ValidateAndFix(plan)
+		validator.ValidateAndFix(plan, false)
 	}
 }
 

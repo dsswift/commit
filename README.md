@@ -141,6 +141,11 @@ For monorepos, create a `.commit.json` at your repository root:
 
 Scope resolution uses longest-match-wins, so more specific paths take precedence.
 
+A commit never spans two scopes. When the model plans one that does, the
+tool splits it into one commit per scope, each with the same type and message,
+and says so. Only an explicit `--single` keeps one commit across scopes; a
+default mode of `single` still asks for one commit, then splits it by scope.
+
 ### Commit Type Filtering
 
 Whitelist specific commit types:
